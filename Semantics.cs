@@ -250,6 +250,7 @@ namespace PVMonitor
             PVOutputEnergyTotal = 0.0;
             MeterEnergyPurchased = 0.0;
             MeterEnergySold = 0.0;
+            MeterEnergyConsumed = 0.0;
         }
 
         public double Temperature { get; set; }

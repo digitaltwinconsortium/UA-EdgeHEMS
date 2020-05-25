@@ -51,77 +51,87 @@ namespace PVMonitor
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
             }
 
-            WeatherInfo weather = null;
-            DCACConverter converter = null;
-            SmartMeter meter = null;
             while (true)
             {
+                TelemetryData telemetryData = new TelemetryData();
+
                 try
                 {
                     // read the current weather data from web service
-                    weather = null;
                     using (WebClient webClient = new WebClient())
                     {
                         webClient.BaseAddress = "https://api.openweathermap.org/";
                         var json = webClient.DownloadString("data/2.5/weather?q=Munich,de&units=metric&lang=de&appid=2898258e654f7f321ef3589c4fa58a9b");
-                        weather = JsonConvert.DeserializeObject<WeatherInfo>(json);
+                        WeatherInfo weather = JsonConvert.DeserializeObject<WeatherInfo>(json);
+                        if (weather != null)
+                        {
+                            telemetryData.Temperature = weather.main.temp;
+                            telemetryData.WindSpeed = weather.wind.speed.ToString();
+                            telemetryData.CloudCover = weather.weather[0].description;
+                        }
                     }
                 }
-                catch (WebException ex)
+                catch (Exception ex)
                 {
-                    Console.WriteLine(ex.Message);
+                    Debug.WriteLine(ex.Message);
                 }
 
                 try
                 {
                     // read the current converter data from web service
-                    converter = null;
                     using (WebClient webClient = new WebClient())
                     {
                         webClient.BaseAddress = "http://192.168.178.31/";
                         var json = webClient.DownloadString("solar_api/v1/GetInverterRealtimeData.cgi?Scope=Device&DeviceID=1&DataCollection=CommonInverterData");
-                        converter = JsonConvert.DeserializeObject<DCACConverter>(json);
+                        DCACConverter converter = JsonConvert.DeserializeObject<DCACConverter>(json);
+                        if (converter != null)
+                        {
+                            if (converter.Body.Data.PAC != null)
+                            {
+                                telemetryData.PVOutputPower = ((double)converter.Body.Data.PAC.Value) / 1000.0;
+                            }
+                            if (converter.Body.Data.DAY_ENERGY != null)
+                            {
+                                telemetryData.PVOutputEnergyDay = ((double)converter.Body.Data.DAY_ENERGY.Value) / 1000.0;
+                            }
+                            if (converter.Body.Data.YEAR_ENERGY != null)
+                            {
+                                telemetryData.PVOutputEnergyYear = ((double)converter.Body.Data.YEAR_ENERGY.Value) / 1000.0;
+                            }
+                            if (converter.Body.Data.TOTAL_ENERGY != null)
+                            {
+                                telemetryData.PVOutputEnergyTotal = ((double)converter.Body.Data.TOTAL_ENERGY.Value) / 1000.0;
+                            }
+                        }
                     }
                 }
-                catch (WebException ex)
+                catch (Exception ex)
                 {
-                    Console.WriteLine(ex.Message);
+                    Debug.WriteLine(ex.Message);
                 }
 
                 try
                 {
-                    // read the currnt smart meter data from serial port
-                    meter = null;
-                    // TODO
+                    // read the current smart meter data from serial port
+                    SmartMeter meter = null;
+                    // TODO: Read from serial port
+
+                    if (meter != null)
+                    {
+                        telemetryData.MeterEnergyPurchased = meter.EnergyPurchased;
+                        telemetryData.MeterEnergySold = meter.EnergySold;
+                        telemetryData.MeterEnergyConsumed = telemetryData.PVOutputEnergyTotal + meter.EnergyPurchased - meter.EnergySold;
+                    }
+
                 }
-                catch (WebException ex)
+                catch (Exception ex)
                 {
-                    Console.WriteLine(ex.Message);
+                    Debug.WriteLine(ex.Message);
                 }
 
-                TelemetryData telemetryData = new TelemetryData();
-                if (weather != null)
-                {
-                    telemetryData.Temperature = weather.main.temp;
-                    telemetryData.WindSpeed = weather.wind.speed.ToString();
-                    telemetryData.CloudCover = weather.weather[0].description;
-                }
-                if (converter != null)
-                {
-                    telemetryData.PVOutputPower = ((double)converter.Body.Data.PAC.Value) / 1000.0;
-                    telemetryData.PVOutputEnergyDay = ((double)converter.Body.Data.DAY_ENERGY.Value) / 1000.0;
-                    telemetryData.PVOutputEnergyYear = ((double)converter.Body.Data.YEAR_ENERGY.Value) / 1000.0;
-                    telemetryData.PVOutputEnergyTotal = ((double)converter.Body.Data.TOTAL_ENERGY.Value) / 1000.0;
-                }
-                if (meter != null)
-                {
-                    telemetryData.MeterEnergyPurchased = meter.EnergyPurchased;
-                    telemetryData.MeterEnergySold = meter.EnergySold;
-                    telemetryData.MeterEnergyConsumed = telemetryData.PVOutputEnergyTotal + meter.EnergyPurchased - meter.EnergySold;
-                }
 
                 try
                 {
@@ -129,11 +139,11 @@ namespace PVMonitor
                     Message message = new Message(Encoding.UTF8.GetBytes(messageString));
 
                     await deviceClient.SendEventAsync(message);
-                    Console.WriteLine("{0}: {1}", DateTime.Now, messageString);
+                    Debug.WriteLine("{0}: {1}", DateTime.Now, messageString);
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine(ex.Message);
+                    Debug.WriteLine(ex.Message);
                 }
 
                 await Task.Delay(5000);

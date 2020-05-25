@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
+using System.IO.Ports;
 using Microsoft.Azure.Devices.Client;
 using Microsoft.Azure.Devices.Provisioning.Client;
 using Microsoft.Azure.Devices.Provisioning.Client.Transport;
@@ -30,6 +31,19 @@ namespace PVMonitor
                 System.Threading.Thread.Sleep(1000);
             }
 #endif
+            // Get a list of serial ports
+            string[] ports = SerialPort.GetPortNames();
+            foreach (string port in ports)
+            {
+                Console.WriteLine(port);
+            }
+
+            // open COM7 serial port
+            SerialPort serialPort;
+            serialPort = new SerialPort("COM7", 9600);
+            serialPort.ReadTimeout = 1500;
+            serialPort.WriteTimeout = 1500;
+            serialPort.Open();
 
             DeviceClient deviceClient = null;
             try
@@ -117,8 +131,19 @@ namespace PVMonitor
                 {
                     // read the current smart meter data from serial port
                     SmartMeter meter = null;
-                    // TODO: Read from serial port
+                    string message = string.Empty;
+                    
+                    try
+                    {
+                        message = serialPort.ReadLine();
+                    }
+                    catch (TimeoutException)
+                    {
+                        // do nothing
+                    }
 
+                    // TODO: parse SML message
+             
                     if (meter != null)
                     {
                         telemetryData.MeterEnergyPurchased = meter.EnergyPurchased;

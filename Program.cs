@@ -64,12 +64,12 @@ namespace PVMonitor
                     using (WebClient webClient = new WebClient())
                     {
                         webClient.BaseAddress = "https://api.openweathermap.org/";
-                        var json = webClient.DownloadString("data/2.5/weather?q=Munich,de&units=metric&lang=de&appid=2898258e654f7f321ef3589c4fa58a9b");
+                        var json = webClient.DownloadString("data/2.5/weather?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b");
                         WeatherInfo weather = JsonConvert.DeserializeObject<WeatherInfo>(json);
                         if (weather != null)
                         {
                             telemetryData.Temperature = weather.main.temp;
-                            telemetryData.WindSpeed = weather.wind.speed.ToString();
+                            telemetryData.WindSpeed = weather.wind.speed;
                             telemetryData.CloudCover = weather.weather[0].description;
                         }
                     }

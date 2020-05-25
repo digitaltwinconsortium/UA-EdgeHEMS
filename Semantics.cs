@@ -243,7 +243,7 @@ namespace PVMonitor
             // init data
             Temperature = -100.0;
             CloudCover = "not available";
-            WindSpeed = "not available";
+            WindSpeed = 0.0;
             PVOutputPower = 0.0;
             PVOutputEnergyDay = 0.0;
             PVOutputEnergyYear = 0.0;
@@ -257,7 +257,7 @@ namespace PVMonitor
 
         public string CloudCover { get; set; }
 
-        public string WindSpeed { get; set; }
+        public double WindSpeed { get; set; }
 
         public double PVOutputPower { get; set; }
 

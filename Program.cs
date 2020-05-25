@@ -1,22 +1,36 @@
-﻿using Microsoft.Azure.Devices.Client;
+﻿using System;
+using System.Diagnostics;
+using System.Net;
+using System.Text;
+using System.Threading.Tasks;
+using Microsoft.Azure.Devices.Client;
 using Microsoft.Azure.Devices.Provisioning.Client;
 using Microsoft.Azure.Devices.Provisioning.Client.Transport;
 using Microsoft.Azure.Devices.Shared;
 using Newtonsoft.Json;
-using System;
-using System.Net;
-using System.Text;
-using System.Threading.Tasks;
-using Windows.ApplicationModel.Background;
-
-// The Background Application template is documented at http://go.microsoft.com/fwlink/?LinkID=533884&clcid=0x409
 
 namespace PVMonitor
 {
-    public sealed class StartupTask : IBackgroundTask
+    class Program
     {
-        public async void Run(IBackgroundTaskInstance taskInstance)
+        static async Task Main(string[] args)
         {
+#if DEBUG
+            // Attach remote debugger
+            while (true)
+            {
+
+                Console.WriteLine("Waiting for remote debugger to attach...");
+                
+                if (Debugger.IsAttached)
+                {
+                    break;
+                }
+
+                System.Threading.Thread.Sleep(1000);
+            }
+#endif
+
             DeviceClient deviceClient = null;
             try
             {
@@ -32,7 +46,7 @@ namespace PVMonitor
                 var provisioningClient = ProvisioningDeviceClient.Create("global.azure-devices-provisioning.net", scopeId, security, transport);
                 var result = await provisioningClient.RegisterAsync();
 
-                var connectionString = "HostName=" + result.AssignedHub + ";DeviceId=" + result.DeviceId;
+                var connectionString = "HostName=" + result.AssignedHub + ";DeviceId=" + result.DeviceId + ";SharedAccessKey=" + primaryKey;
                 deviceClient = DeviceClient.CreateFromConnectionString(connectionString, TransportType.Mqtt);
             }
             catch (Exception ex)
@@ -106,6 +120,7 @@ namespace PVMonitor
                 {
                     telemetryData.MeterEnergyPurchased = meter.EnergyPurchased;
                     telemetryData.MeterEnergySold = meter.EnergySold;
+                    telemetryData.MeterEnergyConsumed = telemetryData.PVOutputEnergyTotal + meter.EnergyPurchased - meter.EnergySold;
                 }
 
                 try

@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace PVMonitor
 {
@@ -270,5 +269,7 @@ namespace PVMonitor
         public double MeterEnergyPurchased { get; set; }
 
         public double MeterEnergySold { get; set; }
+
+        public double MeterEnergyConsumed { get; set; }
     }
 }

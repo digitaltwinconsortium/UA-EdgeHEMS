@@ -31,18 +31,17 @@ namespace PVMonitor
                 System.Threading.Thread.Sleep(1000);
             }
 #endif
-            // Get a list of serial ports
+            // print a list of serial ports
             string[] ports = SerialPort.GetPortNames();
             foreach (string port in ports)
             {
-                Console.WriteLine(port);
+                Console.WriteLine("Serial port available: " + port);
             }
 
-            // open COM7 serial port
+            // open the serial port
             SerialPort serialPort;
-            serialPort = new SerialPort("COM7", 9600);
-            serialPort.ReadTimeout = 1500;
-            serialPort.WriteTimeout = 1500;
+            serialPort = new SerialPort("COM1", 9600, Parity.None, 8, StopBits.One);
+            serialPort.ReadTimeout = 2000;
             serialPort.Open();
 
             DeviceClient deviceClient = null;

@@ -39,9 +39,25 @@ namespace PVMonitor
             }
 
             // open the serial port
-            SerialPort serialPort = new SerialPort("COM4", 19200, Parity.None, 8, StopBits.One);
+            SerialPort serialPort = new SerialPort("/dev/ttyUSB0", 9600, Parity.None, 8, StopBits.One);
             serialPort.ReadTimeout = 2000;
             serialPort.Open();
+
+            string message = string.Empty;
+
+            while (true)
+            {
+                try
+                {
+                    message = serialPort.ReadLine();
+                }
+                catch (TimeoutException)
+                {
+                    // do nothing
+                }
+
+                Console.WriteLine(message);
+            }
 
             DeviceClient deviceClient = null;
             try
@@ -129,17 +145,7 @@ namespace PVMonitor
                 {
                     // read the current smart meter data from serial port
                     SmartMeter meter = null;
-                    string message = string.Empty;
                     
-                    try
-                    {
-                        message = serialPort.ReadLine();
-                    }
-                    catch (TimeoutException)
-                    {
-                        // do nothing
-                    }
-
                     // TODO: parse SML message
              
                     if (meter != null)
@@ -159,9 +165,9 @@ namespace PVMonitor
                 try
                 {
                     string messageString = JsonConvert.SerializeObject(telemetryData);
-                    Message message = new Message(Encoding.UTF8.GetBytes(messageString));
+                    Message cloudMessage = new Message(Encoding.UTF8.GetBytes(messageString));
 
-                    await deviceClient.SendEventAsync(message);
+                    await deviceClient.SendEventAsync(cloudMessage);
                     Debug.WriteLine("{0}: {1}", DateTime.Now, messageString);
                 }
                 catch (Exception ex)

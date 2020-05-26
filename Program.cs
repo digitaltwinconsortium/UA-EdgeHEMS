@@ -47,16 +47,18 @@ namespace PVMonitor
 
             while (true)
             {
+                
                 try
                 {
-                    message = serialPort.ReadLine();
+                    byte[] array = new byte[256];
+                    int bytesRead = serialPort.Read(array, 0, 256);
+                    string bytesReadString = BitConverter.ToString(array).Replace('-', ',').Substring(0, bytesRead * 3);
+                    Console.WriteLine(bytesReadString);
                 }
                 catch (TimeoutException)
                 {
                     // do nothing
                 }
-
-                Console.WriteLine(message);
             }
 
             DeviceClient deviceClient = null;

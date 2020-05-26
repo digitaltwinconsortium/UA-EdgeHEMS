@@ -39,8 +39,7 @@ namespace PVMonitor
             }
 
             // open the serial port
-            SerialPort serialPort;
-            serialPort = new SerialPort("COM1", 9600, Parity.None, 8, StopBits.One);
+            SerialPort serialPort = new SerialPort("COM4", 19200, Parity.None, 8, StopBits.One);
             serialPort.ReadTimeout = 2000;
             serialPort.Open();
 

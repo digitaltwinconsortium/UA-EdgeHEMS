@@ -50,9 +50,9 @@ namespace PVMonitor
                 
                 try
                 {
-                    byte[] array = new byte[256];
-                    int bytesRead = serialPort.Read(array, 0, 256);
-                    string bytesReadString = BitConverter.ToString(array).Replace('-', ',').Substring(0, bytesRead * 3);
+                    byte[] inputBuffer = new byte[256];
+                    int bytesRead = serialPort.Read(inputBuffer, 0, 256);
+                    string bytesReadString = BitConverter.ToString(inputBuffer).Replace('-', ',').Substring(0, bytesRead * 3);
                     Console.WriteLine(bytesReadString);
                 }
                 catch (TimeoutException)

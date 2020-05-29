@@ -9,8 +9,10 @@
 
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 
 namespace PVMonitor
 {
@@ -56,11 +58,6 @@ namespace PVMonitor
                 res[i] = 0x00;
 
             return res;
-        }
-
-        protected object ReadPOD()
-        {
-            return ReadPOD(false);
         }
 
         protected object ReadPOD(bool optional)
@@ -115,11 +112,6 @@ namespace PVMonitor
             throw new InvalidDataException("Invalid TypeLength");
         }
 
-        protected object ReadElement(Type type)
-        {
-            return ReadElement(type, false);
-        }
-
         protected object ReadElement(Type type, bool optional)
         {
             if (type.GetCustomAttributes(false).Any(attribute => attribute is Sequence || attribute is Choice))
@@ -166,7 +158,7 @@ namespace PVMonitor
                 var underlyingType = field.FieldType.GetGenericArguments()[0];
                 var list = Activator.CreateInstance(field.FieldType, tl.Length) as IList;
                 for (int i = 0; i < tl.Length; i++)
-                    list.Add(ReadElement(underlyingType));
+                    list.Add(ReadElement(underlyingType, false));
 
                 field.SetValue(obj, list);
             }
@@ -185,19 +177,26 @@ namespace PVMonitor
             }
         }
 
-        protected object HandleSequence(Type type, TypeLength tl)
+        protected object HandleList(Type type, TypeLength tl)
         {
             if (tl.Type != SMLType.List)
+            {
                 throw new InvalidDataException("Expected list");
+            }
 
             var fieldCount = tl.Length;
             var fields = type.GetFields();
             if (fields.Count() != fieldCount)
+            {
                 throw new InvalidDataException("Read list with " + fieldCount + " items, expected " + fields.Count());
+            }
 
             var ret = Activator.CreateInstance(type);
+
             foreach (var field in fields)
+            {
                 FillField(ret, field);
+            }
 
             return ret;
         }
@@ -207,7 +206,7 @@ namespace PVMonitor
             if (tl.Type != SMLType.List || tl.Length != 2)
                 throw new InvalidDataException("Invalid Choice; expected list with two items (tag and element)");
 
-            var tag = (uint)Convert.ChangeType(ReadPOD(), typeof(uint));
+            var tag = (uint)Convert.ChangeType(ReadPOD(false), typeof(uint));
             var fields = type.GetFields();
 
             foreach (var field in fields)
@@ -236,54 +235,22 @@ namespace PVMonitor
 
         public object Read(Type type)
         {
-            var attributes = type.GetCustomAttributes(false);
-
             var tl = new TypeLength(Source);
             if (tl.IsOptionalMarker)
+            {
                 return null;
+            }
 
-            if (attributes.Any(attribute => attribute is Sequence))
-                return HandleSequence(type, tl);
-
-            if (attributes.Any(attribute => attribute is Choice))
+            if (tl.Type == SMLType.List)
+            {
+                return HandleList(type, tl);
+            }
+            else
+            {
                 return HandleChoice(type, tl);
-
-            throw new ArgumentException("Type doesn't use any of the SML attributes");
-        }
-
-        public T Read<T>() where T : struct
-        {
-            return (T)Read(typeof(T));
-        }
-
-        public TypeLength(Stream source)
-        {
-            var reader = new BinaryReader(source);
-            var value = reader.ReadByte();
-
-            if ((value & Constants.ExtraByteMask) != 0)
-            {
-                throw new NotImplementedException("Found multi-byte TypeLength which is currently not supported");
-            }
-
-            Type = (SMLType)((value & Constants.TypeMask) >> 4);
-
-            // no idea why this oddity is necessary..
-            Length = (value & Constants.LengthMask) - (Type != SMLType.List ? 1 : 0);
-        }
-
-        public int Length { get; private set; }
-
-        public SMLType Type { get; private set; }
-
-        public bool IsOptionalMarker
-        {
-            get
-            {
-                return Type == SMLType.OctetString && Length == 0;
             }
         }
-       
+
         public static short Reverse(short value)
         {
             return (short)Reverse((ushort)value);
@@ -322,6 +289,37 @@ namespace PVMonitor
                 ((value & 0x0000FF0000000000UL) >> 24) |
                 ((value & 0x00FF000000000000UL) >> 40) |
                 ((value & 0xFF00000000000000UL) >> 56);
+        }
+    }
+
+    public class TypeLength
+    { 
+        public TypeLength(Stream source)
+        {
+            var reader = new BinaryReader(source);
+            var value = reader.ReadByte();
+
+            if ((value & Constants.ExtraByteMask) != 0)
+            {
+                throw new NotImplementedException("Found multi-byte TypeLength which is currently not supported");
+            }
+
+            Type = (SMLType)((value & Constants.TypeMask) >> 4);
+
+            // List types don't count the type byte as part of the length, while all others do
+            Length = (value & Constants.LengthMask) - (Type != SMLType.List ? 1 : 0);
+        }
+
+        public int Length { get; private set; }
+
+        public SMLType Type { get; private set; }
+
+        public bool IsOptionalMarker
+        {
+            get
+            {
+                return (Type == SMLType.OctetString) && (Length == 0);
+            }
         }
     }
 }

@@ -50,10 +50,12 @@ namespace PVMonitor
                 
                 try
                 {
-                    byte[] inputBuffer = new byte[256];
-                    int bytesRead = serialPort.Read(inputBuffer, 0, 256);
-                    string bytesReadString = BitConverter.ToString(inputBuffer).Replace('-', ',').Substring(0, bytesRead * 3);
-                    Console.WriteLine(bytesReadString);
+                    SmartMeterLanguage sml = new SmartMeterLanguage(serialPort.BaseStream);
+                    sml.ProcessStream();
+                //    byte[] inputBuffer = new byte[256];
+                //    int bytesRead = serialPort.Read(inputBuffer, 0, 256);
+                //    string bytesReadString = BitConverter.ToString(inputBuffer).Replace('-', ',').Substring(0, bytesRead * 3);
+                //    Console.WriteLine(bytesReadString);
                 }
                 catch (TimeoutException)
                 {

@@ -139,38 +139,89 @@ namespace PVMonitor
             ushort command = _reader.ReadUInt16();
             switch (command)
             {
-                case Constants.PublicOpenReq: break;
+                case Constants.PublicOpenReq:
+                    {
+                        throw new NotImplementedException();
+                    }
                 case Constants.PublicOpenRes:
                     {
                         ProcessOpenResponse();
                     }
                     break;
-                case Constants.PublicCloseReq: break;
+                case Constants.PublicCloseReq:
+                    {
+                        throw new NotImplementedException();
+                    }
                 case Constants.PublicCloseRes:
                     {
                         ProcessCloseResponse();
                     }
                     break;
-                case Constants.GetProfilePackReq: break;
-                case Constants.GetProfilePackRes: break;
-                case Constants.GetProfileListReq:break;
-                case Constants.GetProfileListRes:break;
-                case Constants.GetProcParameterReq:break;
-                case Constants.GetProcParameterRes:break;
-                case Constants.SetProcParameterRes:break;
-                case Constants.GetListReq:break;
+                case Constants.GetProfilePackReq:
+                    {
+                        throw new NotImplementedException();
+                    }
+                case Constants.GetProfilePackRes:
+                    {
+                        throw new NotImplementedException();
+                    }
+                case Constants.GetProfileListReq:
+                    {
+                        throw new NotImplementedException();
+                    }
+                case Constants.GetProfileListRes:
+                    {
+                        throw new NotImplementedException();
+                    }
+                case Constants.GetProcParameterReq:
+                    {
+                        throw new NotImplementedException();
+                    }
+                case Constants.GetProcParameterRes:
+                    {
+                        throw new NotImplementedException();
+                    }
+                case Constants.SetProcParameterRes:
+                    {
+                        throw new NotImplementedException();
+                    }
+                case Constants.GetListReq:
+                    {
+                        throw new NotImplementedException();
+                    }
                 case Constants.GetListRes:
                     {
                         ProcessGetListResponse();
                     }
                     break;
-                case Constants.GetCosemReq:break;
-                case Constants.GetCosemRes:break;
-                case Constants.SetCosemReq:break;
-                case Constants.SetCosemRes:break;
-                case Constants.ActionCosemReq:break;
-                case Constants.ActionCosemRes:break;
-                case Constants.AttentionRes:break;
+                case Constants.GetCosemReq:
+                    {
+                        throw new NotImplementedException();
+                    }
+                case Constants.GetCosemRes:
+                    {
+                        throw new NotImplementedException();
+                    }
+                case Constants.SetCosemReq:
+                    {
+                        throw new NotImplementedException();
+                    }
+                case Constants.SetCosemRes:
+                    {
+                        throw new NotImplementedException();
+                    }
+                case Constants.ActionCosemReq:
+                    {
+                        throw new NotImplementedException();
+                    }
+                case Constants.ActionCosemRes:
+                    {
+                        throw new NotImplementedException();
+                    }
+                case Constants.AttentionRes:
+                    {
+                        throw new NotImplementedException();
+                    }
                 default:
                 {
                     throw new InvalidDataException("Unknown command received: " + command.ToString());
@@ -193,7 +244,7 @@ namespace PVMonitor
                 throw new InvalidDataException("Expected list length of 6");
             }
 
-
+            throw new NotImplementedException();
         }
 
         private void ProcessGetListResponse()

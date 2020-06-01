@@ -9,6 +9,8 @@ namespace PVMonitor
     {
         private BinaryReader _reader;
 
+        public SmartMeter Meter { get; set; }
+
         public SmartMeterLanguage(Stream source)
         {
             _reader = new BinaryReader(source);
@@ -24,14 +26,42 @@ namespace PVMonitor
                     _reader.ReadByte();
                 }
 
-                // next, we should see the version info
-                if (_reader.ReadUInt32() != Constants.Version1Marker)
+                // read the file begin sequence
+                if (_reader.ReadUInt32() != Constants.FileBegin)
                 {
-                    throw new InvalidDataException("Expected version marker");
+                    throw new InvalidDataException("Expected file begin sequence");
                 }
 
-                // next, we should see some SML messages
+                // process the SML messages
                 ProcessSMLMessages();
+
+                // read the fill bytes
+                while (_reader.ReadByte() == 0x00);
+
+                // read the escape sequence at the end
+                ReadEscapeSequence();
+
+                // read the file end marker
+                if (_reader.ReadByte() != Constants.FileEnd)
+                {
+                    throw new InvalidDataException("Expected file end marker");
+                }
+
+                // read CRC
+                SMLType type = SMLType.Unknown;
+                int length = 0;
+
+                // an SML message has 6 list elements
+                ProcessNextType(out type, out length);
+                if (type != SMLType.OctetString)
+                {
+                    throw new InvalidDataException("Expected string");
+                }
+                if (length != 2)
+                {
+                    throw new InvalidDataException("Expected 2 elements for CRC");
+                }
+                ushort crc = _reader.ReadUInt16();
             }
             catch (Exception ex)
             {
@@ -119,7 +149,7 @@ namespace PVMonitor
 
                 // process end of message
                 ProcessNextType(out type, out length);
-                if (_reader.ReadByte() != Constants.EndOfSmlMessage)
+                if (_reader.ReadByte() != Constants.EndOfMessage)
                 {
                     throw new InvalidDataException("Expected end of message flag");
                 }
@@ -155,92 +185,70 @@ namespace PVMonitor
             switch (command)
             {
                 case Constants.PublicOpenReq:
-                    {
-                        throw new NotImplementedException();
-                    }
+                    throw new NotImplementedException();
+                
                 case Constants.PublicOpenRes:
-                    {
-                        ProcessOpenResponse();
-                    }
+                    ProcessOpenResponse();
                     break;
+                
                 case Constants.PublicCloseReq:
-                    {
-                        throw new NotImplementedException();
-                    }
+                    throw new NotImplementedException();
+                
                 case Constants.PublicCloseRes:
-                    {
-                        ProcessCloseResponse();
-                    }
+                    ProcessCloseResponse();
                     break;
+                
                 case Constants.GetProfilePackReq:
-                    {
-                        throw new NotImplementedException();
-                    }
+                    throw new NotImplementedException();
+                
                 case Constants.GetProfilePackRes:
-                    {
-                        throw new NotImplementedException();
-                    }
+                    throw new NotImplementedException();
+                
                 case Constants.GetProfileListReq:
-                    {
-                        throw new NotImplementedException();
-                    }
+                    throw new NotImplementedException();
+                
                 case Constants.GetProfileListRes:
-                    {
-                        throw new NotImplementedException();
-                    }
+                    throw new NotImplementedException();
+                
                 case Constants.GetProcParameterReq:
-                    {
-                        throw new NotImplementedException();
-                    }
+                    throw new NotImplementedException();
+                
                 case Constants.GetProcParameterRes:
-                    {
-                        throw new NotImplementedException();
-                    }
+                    throw new NotImplementedException();
+                
                 case Constants.SetProcParameterRes:
-                    {
-                        throw new NotImplementedException();
-                    }
+                    throw new NotImplementedException();
+                
                 case Constants.GetListReq:
-                    {
-                        throw new NotImplementedException();
-                    }
+                    throw new NotImplementedException();
+                
                 case Constants.GetListRes:
-                    {
-                        ProcessGetListResponse();
-                    }
+                    ProcessGetListResponse();
                     break;
+                
                 case Constants.GetCosemReq:
-                    {
-                        throw new NotImplementedException();
-                    }
+                    throw new NotImplementedException();
+                
                 case Constants.GetCosemRes:
-                    {
-                        throw new NotImplementedException();
-                    }
+                    throw new NotImplementedException();
+                
                 case Constants.SetCosemReq:
-                    {
-                        throw new NotImplementedException();
-                    }
+                    throw new NotImplementedException();
+                
                 case Constants.SetCosemRes:
-                    {
-                        throw new NotImplementedException();
-                    }
+                    throw new NotImplementedException();
+                
                 case Constants.ActionCosemReq:
-                    {
-                        throw new NotImplementedException();
-                    }
+                    throw new NotImplementedException();
+                
                 case Constants.ActionCosemRes:
-                    {
-                        throw new NotImplementedException();
-                    }
+                    throw new NotImplementedException();
+                
                 case Constants.AttentionRes:
-                    {
-                        throw new NotImplementedException();
-                    }
+                    throw new NotImplementedException();
+                
                 default:
-                {
-                    throw new InvalidDataException("Unknown command received: " + command.ToString());
-                }
+                   throw new InvalidDataException("Unknown command received: " + command.ToString());
             }
         }
 
@@ -460,7 +468,7 @@ namespace PVMonitor
             {
                 throw new InvalidDataException("Expected string");
             }
-            string objectName = BitConverter.ToString(_reader.ReadBytes(length));
+            string OBISID = BitConverter.ToString(_reader.ReadBytes(length));
 
             // process status (optional)
             ProcessNextType(out type, out length);
@@ -485,30 +493,99 @@ namespace PVMonitor
                     throw new InvalidDataException("Expected unsigned");
                 }
                 byte unit = _reader.ReadByte();
+                if (((OBISID == Constants.PositivActiveEnergyTotal)
+                  || (OBISID == Constants.NegativeActiveEnergyTotal))
+                  && (unit != Constants.WattHours))
+                {
+                    throw new InvalidDataException("Expected watt-hours for units");
+                }
             }
 
-            // process scalar (optional)
+            // process scaler (optional)
             ProcessNextType(out type, out length);
+            int scaler = 0;
             if (type != SMLType.Empty)
             {
                 if (type != SMLType.Integer)
                 {
                     throw new InvalidDataException("Expected integer");
                 }
-                byte scalar = _reader.ReadByte();
+                scaler = _reader.ReadByte();
             }
 
             // process value
             ProcessNextType(out type, out length);
-            if (type != SMLType.Integer)
+            switch (type)
             {
-                throw new InvalidDataException("Expected integer");
+                case SMLType.OctetString:
+                    string value = BitConverter.ToString(_reader.ReadBytes(length));
+                    break;
+
+                case SMLType.Integer:
+                    long int64 = 0;
+
+                    if (length == 8)
+                    {
+                        int64 = _reader.ReadInt64();
+                    }
+                    if (length == 4)
+                    {
+                        int64 = _reader.ReadInt32();
+                    }
+                    if (length == 2)
+                    {
+                        int64 = _reader.ReadInt16();
+                    }
+                    if (length == 1)
+                    {
+                        int64 = _reader.ReadByte();
+                    }
+
+                    if (OBISID == Constants.PositivActiveEnergyTotal)
+                    {
+                        Meter.EnergyPurchased = int64 * Math.Pow(10, scaler) / 1000; // in kWh
+                    }
+                    if (OBISID == Constants.NegativeActiveEnergyTotal)
+                    {
+                        Meter.EnergySold = int64 * Math.Pow(10, scaler) / 1000; // in kWh
+                    }
+
+                    break;
+
+                case SMLType.Unsigned:
+                    ulong uint64 = 0;
+
+                    if (length == 8)
+                    {
+                        uint64 = _reader.ReadUInt64();
+                    }
+                    if (length == 4)
+                    {
+                        uint64 = _reader.ReadUInt32();
+                    }
+                    if (length == 2)
+                    {
+                        uint64 = _reader.ReadUInt16();
+                    }
+                    if (length == 1)
+                    {
+                        uint64 = _reader.ReadByte();
+                    }
+
+                    if (OBISID == Constants.PositivActiveEnergyTotal)
+                    {
+                        Meter.EnergyPurchased = uint64 * Math.Pow(10, scaler) / 1000; // in kWh
+                    }
+                    if (OBISID == Constants.NegativeActiveEnergyTotal)
+                    {
+                        Meter.EnergySold = uint64 * Math.Pow(10, scaler) / 1000; // in kWh
+                    }
+                    
+                    break;
+
+                default:
+                    throw new NotImplementedException();
             }
-            if (length != 8)
-            {
-                throw new InvalidDataException("Expected integer length of 8");
-            }
-            long value = _reader.ReadInt64();
 
             // process value signature (optional)
             ProcessNextType(out type, out length);

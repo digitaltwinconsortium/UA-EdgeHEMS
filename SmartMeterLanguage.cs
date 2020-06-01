@@ -18,11 +18,10 @@ namespace PVMonitor
         {
             try
             {
-                // look for the escape sequence
-                while (_reader.ReadUInt32() != Constants.EscapeSequence)
+                // read a byte at a time until we find the next escape sequence
+                while (!ReadEscapeSequence())
                 {
-                    // wind back to the original byte + 1
-                    _reader.BaseStream.Seek(-3, SeekOrigin.Current);
+                    _reader.ReadByte();
                 }
 
                 // next, we should see the version info
@@ -40,80 +39,96 @@ namespace PVMonitor
             }
         }
 
+        private bool ReadEscapeSequence()
+        {
+            // look for the escape sequence
+            bool isEscapeSequence = (_reader.ReadUInt32() == Constants.EscapeSequence);
+            if (!isEscapeSequence)
+            {
+                // if we didn't find it, we wind back to the original byte
+                _reader.BaseStream.Seek(-4, SeekOrigin.Current);
+            }
+
+            return isEscapeSequence;
+        }
+
         private void ProcessSMLMessages()
         {
-            SMLType type = SMLType.Unkown;
-            int length = 0;
+            while (!ReadEscapeSequence())
+            {
+                SMLType type = SMLType.Unknown;
+                int length = 0;
 
-            // an SML message has 6 list elements
-            ProcessNextType(out type, out length);
-            if (type != SMLType.List)
-            {
-                throw new InvalidDataException("Expected list");
-            }
-            if (length != 6)
-            {
-                throw new InvalidDataException("Expected 6 elements in SML message");
-            }
+                // an SML message has 6 list elements
+                ProcessNextType(out type, out length);
+                if (type != SMLType.List)
+                {
+                    throw new InvalidDataException("Expected list");
+                }
+                if (length != 6)
+                {
+                    throw new InvalidDataException("Expected 6 elements in SML message");
+                }
 
-            // process transaction ID
-            ProcessNextType(out type, out length);
-            if (type != SMLType.OctetString)
-            {
-                throw new InvalidDataException("Expected string");
-            }
-            string transactionId = BitConverter.ToString(_reader.ReadBytes(length));
+                // process transaction ID
+                ProcessNextType(out type, out length);
+                if (type != SMLType.OctetString)
+                {
+                    throw new InvalidDataException("Expected string");
+                }
+                string transactionId = BitConverter.ToString(_reader.ReadBytes(length));
 
-            // process group ID
-            ProcessNextType(out type, out length);
-            if (type != SMLType.Unsigned)
-            {
-                throw new InvalidDataException("Expected group ID as unsigned");
-            }
-            if (length != 1)
-            {
-                throw new InvalidDataException("Expected group ID length of 1");
-            }
-            byte groupNo = _reader.ReadByte();
+                // process group ID
+                ProcessNextType(out type, out length);
+                if (type != SMLType.Unsigned)
+                {
+                    throw new InvalidDataException("Expected group ID as unsigned");
+                }
+                if (length != 1)
+                {
+                    throw new InvalidDataException("Expected group ID length of 1");
+                }
+                byte groupNo = _reader.ReadByte();
 
-            // process abort flag
-            ProcessNextType(out type, out length);
-            if (type != SMLType.Unsigned)
-            {
-                throw new InvalidDataException("Expected abort flag as unsigned");
-            }
-            if (length != 1)
-            {
-                throw new InvalidDataException("Expected abort flag length of 1");
-            }
-            AbortOnError abortFlag = (AbortOnError)_reader.ReadByte();
+                // process abort flag
+                ProcessNextType(out type, out length);
+                if (type != SMLType.Unsigned)
+                {
+                    throw new InvalidDataException("Expected abort flag as unsigned");
+                }
+                if (length != 1)
+                {
+                    throw new InvalidDataException("Expected abort flag length of 1");
+                }
+                AbortOnError abortFlag = (AbortOnError)_reader.ReadByte();
 
-            // process message body
-            ProcessSMLMessageBody();
+                // process message body
+                ProcessSMLMessageBody();
 
-            // process CRC
-            ProcessNextType(out type, out length);
-            if (type != SMLType.Unsigned)
-            {
-                throw new InvalidDataException("Expected CRC16 as unsigned");
-            }
-            if (length != 2)
-            {
-                throw new InvalidDataException("Expected CRC16 length of 2");
-            }
-            ushort CRC16 = _reader.ReadUInt16();
+                // process CRC
+                ProcessNextType(out type, out length);
+                if (type != SMLType.Unsigned)
+                {
+                    throw new InvalidDataException("Expected CRC16 as unsigned");
+                }
+                if (length != 2)
+                {
+                    throw new InvalidDataException("Expected CRC16 length of 2");
+                }
+                ushort CRC16 = _reader.ReadUInt16();
 
-            // process end of message
-            ProcessNextType(out type, out length);
-            if (_reader.ReadByte() != Constants.EndOfSmlMessage)
-            {
-                throw new InvalidDataException("Expected end of message flag");
+                // process end of message
+                ProcessNextType(out type, out length);
+                if (_reader.ReadByte() != Constants.EndOfSmlMessage)
+                {
+                    throw new InvalidDataException("Expected end of message flag");
+                }
             }
         }
 
         private void ProcessSMLMessageBody()
         {
-            SMLType type = SMLType.Unkown;
+            SMLType type = SMLType.Unknown;
             int length = 0;
 
             ProcessNextType(out type, out length);
@@ -231,7 +246,7 @@ namespace PVMonitor
 
         private void ProcessOpenResponse()
         {
-            SMLType type = SMLType.Unkown;
+            SMLType type = SMLType.Unknown;
             int length = 0;
 
             ProcessNextType(out type, out length);
@@ -239,22 +254,299 @@ namespace PVMonitor
             {
                 throw new InvalidDataException("Expected list");
             }
-            if (length != 2)
+            if (length != 6)
             {
                 throw new InvalidDataException("Expected list length of 6");
             }
 
-            throw new NotImplementedException();
+            // process codepage (optional)
+            ProcessNextType(out type, out length);
+            if (type != SMLType.Empty)
+            {
+                if (type != SMLType.OctetString)
+                {
+                    throw new InvalidDataException("Expected string");
+                }
+                string codePage = BitConverter.ToString(_reader.ReadBytes(length));
+            }
+
+            // process client ID (optional)
+            ProcessNextType(out type, out length);
+            if (type != SMLType.Empty)
+            {
+                if (type != SMLType.OctetString)
+                {
+                    throw new InvalidDataException("Expected string");
+                }
+                string clientID = BitConverter.ToString(_reader.ReadBytes(length));
+            }
+
+            // process file ID
+            ProcessNextType(out type, out length);
+            if (type != SMLType.OctetString)
+            {
+                throw new InvalidDataException("Expected string");
+            }
+            string fileID = BitConverter.ToString(_reader.ReadBytes(length));
+
+            // process server ID
+            ProcessNextType(out type, out length);
+            if (type != SMLType.OctetString)
+            {
+                throw new InvalidDataException("Expected string");
+            }
+            string serverID = BitConverter.ToString(_reader.ReadBytes(length));
+
+            // process ref time (optional)
+            ProcessTime();
+
+            // process SML version (optional)
+            ProcessNextType(out type, out length);
+            if (type != SMLType.Empty)
+            {
+                if (type != SMLType.Unsigned)
+                {
+                    throw new InvalidDataException("Expected unsigned");
+                }
+                if (length != 1)
+                {
+                    throw new InvalidDataException("Expected unsigned length of 1");
+                }
+                byte smlVersion = _reader.ReadByte();
+            }
+        }
+
+        private void ProcessTime()
+        {
+            SMLType type = SMLType.Unknown;
+            int length = 0;
+
+            ProcessNextType(out type, out length);
+            if (type != SMLType.Empty)
+            {
+                if (type != SMLType.List)
+                {
+                    throw new InvalidDataException("Expected list");
+                }
+                if (length != 2)
+                {
+                    throw new InvalidDataException("Expected list length of 2");
+                }
+
+                ProcessNextType(out type, out length);
+                if (type != SMLType.Unsigned)
+                {
+                    throw new InvalidDataException("Expected unsigned");
+                }
+                if (length != 1)
+                {
+                    throw new InvalidDataException("Expected unsigned length of 1");
+                }
+                byte secIndex = _reader.ReadByte();
+
+                ProcessNextType(out type, out length);
+                if (type != SMLType.Unsigned)
+                {
+                    throw new InvalidDataException("Expected unsigned");
+                }
+                if (length != 4)
+                {
+                    throw new InvalidDataException("Expected unsigned length of 4");
+                }
+                uint timeStamp = _reader.ReadUInt32();
+            }
         }
 
         private void ProcessGetListResponse()
         {
-            throw new NotImplementedException();
+            SMLType type = SMLType.Unknown;
+            int length = 0;
+
+            ProcessNextType(out type, out length);
+            if (type != SMLType.List)
+            {
+                throw new InvalidDataException("Expected list");
+            }
+            if (length != 7)
+            {
+                throw new InvalidDataException("Expected list length of 7");
+            }
+
+            // process client ID (optional)
+            ProcessNextType(out type, out length);
+            if (type != SMLType.Empty)
+            {
+                if (type != SMLType.OctetString)
+                {
+                    throw new InvalidDataException("Expected string");
+                }
+                string clientID = BitConverter.ToString(_reader.ReadBytes(length));
+            }
+
+            // process server ID
+            ProcessNextType(out type, out length);
+            if (type != SMLType.OctetString)
+            {
+                throw new InvalidDataException("Expected string");
+            }
+            string serverID = BitConverter.ToString(_reader.ReadBytes(length));
+
+            // process list name (optional)
+            ProcessNextType(out type, out length);
+            if (type != SMLType.Empty)
+            {
+                if (type != SMLType.OctetString)
+                {
+                    throw new InvalidDataException("Expected string");
+                }
+                string listName = BitConverter.ToString(_reader.ReadBytes(length));
+            }
+
+            // process act sensor time (optional)
+            ProcessTime();
+
+            // process val list
+            ProcessValList();
+
+            // process list signature (optinal)
+            ProcessNextType(out type, out length);
+            if (type != SMLType.Empty)
+            {
+                if (type != SMLType.OctetString)
+                {
+                    throw new InvalidDataException("Expected string");
+                }
+                string clientID = BitConverter.ToString(_reader.ReadBytes(length));
+            }
+
+            // process gateway time (optional)
+            ProcessTime();
+        }
+
+        private void ProcessValList()
+        {
+            SMLType type = SMLType.Unknown;
+            int length = 0;
+
+            ProcessNextType(out type, out length);
+            if (type != SMLType.List)
+            {
+                throw new InvalidDataException("Expected list");
+            }
+            for (int i = 0; i < length; i++)
+            {
+                ProcessListEntry();
+            }
+        }
+
+        private void ProcessListEntry()
+        {
+            SMLType type = SMLType.Unknown;
+            int length = 0;
+
+            ProcessNextType(out type, out length);
+            if (type != SMLType.List)
+            {
+                throw new InvalidDataException("Expected list");
+            }
+            if (length != 7)
+            {
+                throw new InvalidDataException("Expected list length of 7");
+            }
+
+            // process object name
+            ProcessNextType(out type, out length);
+            if (type != SMLType.OctetString)
+            {
+                throw new InvalidDataException("Expected string");
+            }
+            string objectName = BitConverter.ToString(_reader.ReadBytes(length));
+
+            // process status (optional)
+            ProcessNextType(out type, out length);
+            if (type != SMLType.Empty)
+            {
+                if (type != SMLType.Unsigned)
+                {
+                    throw new InvalidDataException("Expected unsigned");
+                }
+                byte[] status = _reader.ReadBytes(length);
+            }
+
+            // process valTime (optional)
+            ProcessTime();
+
+            // process unit (optional)
+            ProcessNextType(out type, out length);
+            if (type != SMLType.Empty)
+            {
+                if (type != SMLType.Unsigned)
+                {
+                    throw new InvalidDataException("Expected unsigned");
+                }
+                byte unit = _reader.ReadByte();
+            }
+
+            // process scalar (optional)
+            ProcessNextType(out type, out length);
+            if (type != SMLType.Empty)
+            {
+                if (type != SMLType.Integer)
+                {
+                    throw new InvalidDataException("Expected integer");
+                }
+                byte scalar = _reader.ReadByte();
+            }
+
+            // process value
+            ProcessNextType(out type, out length);
+            if (type != SMLType.Integer)
+            {
+                throw new InvalidDataException("Expected integer");
+            }
+            if (length != 8)
+            {
+                throw new InvalidDataException("Expected integer length of 8");
+            }
+            long value = _reader.ReadInt64();
+
+            // process value signature (optional)
+            ProcessNextType(out type, out length);
+            if (type != SMLType.Empty)
+            {
+                if (type != SMLType.OctetString)
+                {
+                    throw new InvalidDataException("Expected string");
+                }
+                string clientID = BitConverter.ToString(_reader.ReadBytes(length));
+            }
         }
 
         private void ProcessCloseResponse()
         {
-            throw new NotImplementedException();
+            SMLType type = SMLType.Unknown;
+            int length = 0;
+
+            ProcessNextType(out type, out length);
+            if (type != SMLType.List)
+            {
+                throw new InvalidDataException("Expected list");
+            }
+            if (length != 1)
+            {
+                throw new InvalidDataException("Expected list length of 1");
+            }
+
+            // process SML signature (optional)
+            ProcessNextType(out type, out length);
+            if (type != SMLType.Empty)
+            {
+                if (type != SMLType.OctetString)
+                {
+                    throw new InvalidDataException("Expected string");
+                }
+                string clientID = BitConverter.ToString(_reader.ReadBytes(length));
+            }
         }
 
         private void ProcessNextType(out SMLType type, out int length)
@@ -264,6 +556,14 @@ namespace PVMonitor
             if ((byteRead & Constants.ExtraByteMask) != 0)
             {
                 throw new NotImplementedException("Multi-byte length is not supported");
+            }
+
+            // special case: an empty optional field is encoded with 0x01
+            if (byteRead == 0x01)
+            {
+                type = SMLType.Empty;
+                length = 0;
+                return;
             }
             
             type = (SMLType)((byteRead & Constants.TypeMask) >> 4);

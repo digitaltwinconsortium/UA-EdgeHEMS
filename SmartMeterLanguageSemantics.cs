@@ -46,12 +46,13 @@ namespace PVMonitor
 
     public enum SMLType : byte
     {
-        OctetString = 0,
-        Boolean = 4,
-        Integer = 5,
-        Unsigned = 6,
-        List = 7,
-        Unkown = 0xFF
+        OctetString = 0x0,
+        Boolean = 0x4,
+        Integer = 0x5,
+        Unsigned = 0x6,
+        List = 0x7,
+        Empty = 0x01,
+        Unknown = 0xFF
     }
 
     public enum AbortOnError : byte

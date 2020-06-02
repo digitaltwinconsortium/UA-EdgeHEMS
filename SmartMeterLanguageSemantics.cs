@@ -9,10 +9,11 @@ namespace PVMonitor
         public const byte LengthMask = 0x0F;
 
         // markers
-        public const uint EscapeSequence = 0x1B1B1B1B;
-        public const uint FileBegin = 0x01010101;
-        public const ushort FileEnd = 0x1A;
-        public const byte EndOfMessage = 0x0;
+        public const uint EscapeMarker = 0x1B;
+        public const uint FileBeginMarker = 0x01010101;
+        public const ushort FileEndMarker = 0x1A;
+        public const byte EndOfMessageMarker = 0x00;
+        public const byte FillByteMarker = 0x00;
 
         // messages
         public const ushort PublicOpenReq = 0x100;
@@ -47,8 +48,8 @@ namespace PVMonitor
         public const ushort AttentionRes = 0xFF01;
 
         // OBIS identifiers
-        public const string PositivActiveEnergyTotal = "1-0-1-8-0-FF";  // energy purchased from the grid
-        public const string NegativeActiveEnergyTotal = "1-0-2-8-0-FF"; // energy sold to the grid
+        public const string PositivActiveEnergyTotal = "01-00-01-08-00-FF";  // energy purchased from the grid
+        public const string NegativeActiveEnergyTotal = "01-00-02-08-00-FF"; // energy sold to the grid
 
         // DLMS units
         public const byte WattHours = 0x1E;

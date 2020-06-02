@@ -2,66 +2,28 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Ports;
+using System.Threading;
 
 namespace PVMonitor
 {
     class SmartMeterLanguage
     {
-        private BinaryReader _reader;
+        private BinaryReader _reader = null;
+        private SerialPort _serialPort = null;
 
         public SmartMeter Meter { get; set; }
 
-        public SmartMeterLanguage(Stream source)
-        {
-            _reader = new BinaryReader(source);
-        }
-
-        public void ProcessStream()
+        public SmartMeterLanguage(string serialPortName)
         {
             try
             {
-                // read a byte at a time until we find the next escape sequence
-                while (!ReadEscapeSequence())
-                {
-                    _reader.ReadByte();
-                }
+                // open the serial port
+                _serialPort = new SerialPort(serialPortName, 9600, Parity.None, 8, StopBits.One);
+                _serialPort.ReadTimeout = 2000;
+                _serialPort.Open();
 
-                // read the file begin sequence
-                if (_reader.ReadUInt32() != Constants.FileBegin)
-                {
-                    throw new InvalidDataException("Expected file begin sequence");
-                }
-
-                // process the SML messages
-                ProcessSMLMessages();
-
-                // read the fill bytes
-                while (_reader.ReadByte() == 0x00);
-
-                // read the escape sequence at the end
-                ReadEscapeSequence();
-
-                // read the file end marker
-                if (_reader.ReadByte() != Constants.FileEnd)
-                {
-                    throw new InvalidDataException("Expected file end marker");
-                }
-
-                // read CRC
-                SMLType type = SMLType.Unknown;
-                int length = 0;
-
-                // an SML message has 6 list elements
-                ProcessNextType(out type, out length);
-                if (type != SMLType.OctetString)
-                {
-                    throw new InvalidDataException("Expected string");
-                }
-                if (length != 2)
-                {
-                    throw new InvalidDataException("Expected 2 elements for CRC");
-                }
-                ushort crc = _reader.ReadUInt16();
+                _reader = new BinaryReader(_serialPort.BaseStream);
             }
             catch (Exception ex)
             {
@@ -69,90 +31,168 @@ namespace PVMonitor
             }
         }
 
-        private bool ReadEscapeSequence()
+        public void ProcessStream()
         {
-            // look for the escape sequence
-            bool isEscapeSequence = (_reader.ReadUInt32() == Constants.EscapeSequence);
-            if (!isEscapeSequence)
+            try
             {
-                // if we didn't find it, we wind back to the original byte
-                _reader.BaseStream.Seek(-4, SeekOrigin.Current);
-            }
+                new Thread(() =>
+                {
+                    // loop forever on a background thread
+                    Thread.CurrentThread.IsBackground = true;
+                    while (true)
+                    {
+                        // find the next escape sequence
+                        FindEscapeSequence();
+                        
+                        // read the file begin sequence
+                        if (_reader.ReadUInt32() != Constants.FileBegin)
+                        {
+                            throw new InvalidDataException("Expected file begin sequence");
+                        }
 
-            return isEscapeSequence;
+                        // process the SML message(s)
+                        ProcessSMLMessage();
+
+                        // read the fill bytes
+                        while (_reader.ReadByte() == 0x00) ;
+
+                        // read the escape sequence at the end
+                        if (_reader.ReadUInt32() != Constants.EscapeSequence)
+                        {
+                            throw new InvalidDataException("Expected escape sequence");
+                        }
+
+                        // read the file end marker
+                        if (_reader.ReadByte() != Constants.FileEnd)
+                        {
+                            throw new InvalidDataException("Expected file end marker");
+                        }
+
+                        // read CRC
+                        SMLType type = SMLType.Unknown;
+                        int length = 0;
+
+                        // an SML message has 6 list elements
+                        ProcessNextType(out type, out length);
+                        if (type != SMLType.OctetString)
+                        {
+                            throw new InvalidDataException("Expected string");
+                        }
+                        if (length != 2)
+                        {
+                            throw new InvalidDataException("Expected 2 elements for CRC");
+                        }
+                        ushort crc = _reader.ReadUInt16();
+                    }
+                }).Start();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message);
+            }
         }
 
-        private void ProcessSMLMessages()
+        private void FindEscapeSequence()
         {
-            while (!ReadEscapeSequence())
+            // look for the escape sequence
+            while (true)
             {
-                SMLType type = SMLType.Unknown;
-                int length = 0;
+                // find first part of escape marker (0x1B)
+                while (_reader.ReadByte() != 0x1B);
+                
+                // the next 3 bytes must also be 0x1B, but we need to read them a byte at a time
+                if (_reader.ReadByte() == 0x1B)
+                {
+                    if (_reader.ReadByte() == 0x1B)
+                    {
+                        if (_reader.ReadByte() == 0x1B)
+                        {
+                            // we found it!
+                            break;
+                        }
+                    }
+                }
+            }
+        }
 
-                // an SML message has 6 list elements
-                ProcessNextType(out type, out length);
-                if (type != SMLType.List)
-                {
-                    throw new InvalidDataException("Expected list");
-                }
-                if (length != 6)
-                {
-                    throw new InvalidDataException("Expected 6 elements in SML message");
-                }
+        private void ProcessSMLMessage()
+        {
+            SMLType type = SMLType.Unknown;
+            int length = 0;
 
-                // process transaction ID
-                ProcessNextType(out type, out length);
-                if (type != SMLType.OctetString)
-                {
-                    throw new InvalidDataException("Expected string");
-                }
-                string transactionId = BitConverter.ToString(_reader.ReadBytes(length));
+            // an SML message has 6 list elements
+            if (!ProcessNextType(out type, out length))
+            {
+                // SML message is over
+                return;
+            }
+            
+            if (type != SMLType.List)
+            {
+                throw new InvalidDataException("Expected list");
+            }
+            if (length != 6)
+            {
+                throw new InvalidDataException("Expected 6 elements in SML message");
+            }
 
-                // process group ID
-                ProcessNextType(out type, out length);
-                if (type != SMLType.Unsigned)
-                {
-                    throw new InvalidDataException("Expected group ID as unsigned");
-                }
-                if (length != 1)
-                {
-                    throw new InvalidDataException("Expected group ID length of 1");
-                }
-                byte groupNo = _reader.ReadByte();
+            // process transaction ID
+            ProcessNextType(out type, out length);
+            if (type != SMLType.OctetString)
+            {
+                throw new InvalidDataException("Expected string");
+            }
+            string transactionId = BitConverter.ToString(_reader.ReadBytes(length));
 
-                // process abort flag
-                ProcessNextType(out type, out length);
-                if (type != SMLType.Unsigned)
-                {
-                    throw new InvalidDataException("Expected abort flag as unsigned");
-                }
-                if (length != 1)
-                {
-                    throw new InvalidDataException("Expected abort flag length of 1");
-                }
-                AbortOnError abortFlag = (AbortOnError)_reader.ReadByte();
+            // process group ID
+            ProcessNextType(out type, out length);
+            if (type != SMLType.Unsigned)
+            {
+                throw new InvalidDataException("Expected group ID as unsigned");
+            }
+            if (length != 1)
+            {
+                throw new InvalidDataException("Expected group ID length of 1");
+            }
+            byte groupNo = _reader.ReadByte();
 
-                // process message body
-                ProcessSMLMessageBody();
+            // process abort flag
+            ProcessNextType(out type, out length);
+            if (type != SMLType.Unsigned)
+            {
+                throw new InvalidDataException("Expected abort flag as unsigned");
+            }
+            if (length != 1)
+            {
+                throw new InvalidDataException("Expected abort flag length of 1");
+            }
+            byte abortFlag = _reader.ReadByte();
+            if (abortFlag != 0x00)
+            {
+                Debug.WriteLine("Abort received");
+                return;
+            }
 
-                // process CRC
-                ProcessNextType(out type, out length);
-                if (type != SMLType.Unsigned)
-                {
-                    throw new InvalidDataException("Expected CRC16 as unsigned");
-                }
-                if (length != 2)
-                {
-                    throw new InvalidDataException("Expected CRC16 length of 2");
-                }
-                ushort CRC16 = _reader.ReadUInt16();
+            // process message body
+            ProcessSMLMessageBody();
 
-                // process end of message
-                ProcessNextType(out type, out length);
-                if (_reader.ReadByte() != Constants.EndOfMessage)
-                {
-                    throw new InvalidDataException("Expected end of message flag");
-                }
+            // process CRC
+            ProcessNextType(out type, out length);
+            if (type != SMLType.Unsigned)
+            {
+                throw new InvalidDataException("Expected CRC16 as unsigned");
+            }
+            if (length != 2)
+            {
+                throw new InvalidDataException("Expected CRC16 length of 2");
+            }
+            ushort CRC16 = _reader.ReadUInt16();
+
+            // process end of message
+            ProcessNextType(out type, out length);
+            if (_reader.ReadByte() != Constants.EndOfMessage)
+            {
+                throw new InvalidDataException("Expected end of message flag");
             }
         }
 
@@ -626,9 +666,17 @@ namespace PVMonitor
             }
         }
 
-        private void ProcessNextType(out SMLType type, out int length)
+        private bool ProcessNextType(out SMLType type, out int length)
         {
             byte byteRead = _reader.ReadByte();
+
+            // check if we came across an EoM marker
+            if (byteRead == Constants.EndOfMessage)
+            {
+                type = SMLType.Unknown;
+                length = 0;
+                return false;
+            }
             
             if ((byteRead & Constants.ExtraByteMask) != 0)
             {
@@ -640,7 +688,7 @@ namespace PVMonitor
             {
                 type = SMLType.Empty;
                 length = 0;
-                return;
+                return true;
             }
             
             type = (SMLType)((byteRead & Constants.TypeMask) >> 4);
@@ -651,6 +699,8 @@ namespace PVMonitor
             {
                 length--;
             }
+
+            return true;
         }
 
         public static short Reverse(short value)

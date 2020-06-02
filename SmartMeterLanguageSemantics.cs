@@ -65,16 +65,15 @@ namespace PVMonitor
         Unknown = 0xFF
     }
 
-    public enum AbortOnError : byte
-    {
-        Continue = 0x00,
-        ContinueNextGroup = 0x01,
-        ContinueCurrentGroup = 0x02,
-        AbortImmediately = 0xFF
-    }
-
     public sealed class SmartMeter
     {
+        public SmartMeter()
+        {
+            // init members
+            EnergyPurchased = 0.0;
+            EnergySold = 0.0;
+        }
+
         public double EnergyPurchased { get; set; }
 
         public double EnergySold { get; set; }

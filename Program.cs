@@ -38,30 +38,9 @@ namespace PVMonitor
                 Console.WriteLine("Serial port available: " + port);
             }
 
-            // open the serial port
-            SerialPort serialPort = new SerialPort("/dev/ttyUSB0", 9600, Parity.None, 8, StopBits.One);
-            serialPort.ReadTimeout = 2000;
-            serialPort.Open();
-
-            string message = string.Empty;
-
-            while (true)
-            {
-                
-                try
-                {
-                    SmartMeterLanguage sml = new SmartMeterLanguage(serialPort.BaseStream);
-                    sml.ProcessStream();
-                //    byte[] inputBuffer = new byte[256];
-                //    int bytesRead = serialPort.Read(inputBuffer, 0, 256);
-                //    string bytesReadString = BitConverter.ToString(inputBuffer).Replace('-', ',').Substring(0, bytesRead * 3);
-                //    Console.WriteLine(bytesReadString);
-                }
-                catch (TimeoutException)
-                {
-                    // do nothing
-                }
-            }
+            // start processing smart meter messages
+            SmartMeterLanguage sml = new SmartMeterLanguage("/dev/ttyUSB0");
+            sml.ProcessStream();
 
             DeviceClient deviceClient = null;
             try
@@ -147,16 +126,18 @@ namespace PVMonitor
 
                 try
                 {
-                    // read the current smart meter data from serial port
-                    SmartMeter meter = null;
-                    
-                    // TODO: parse SML message
-             
-                    if (meter != null)
+                    // read the current smart meter data
+                    if (sml != null)
                     {
-                        telemetryData.MeterEnergyPurchased = meter.EnergyPurchased;
-                        telemetryData.MeterEnergySold = meter.EnergySold;
-                        telemetryData.MeterEnergyConsumed = telemetryData.PVOutputEnergyTotal + meter.EnergyPurchased - meter.EnergySold;
+                        telemetryData.MeterEnergyPurchased = sml.Meter.EnergyPurchased;
+                        telemetryData.MeterEnergySold = sml.Meter.EnergySold;
+                        telemetryData.MeterEnergyConsumed = 0.0;
+
+                        // calculate energy consumed from the other peices of telemetry
+                        if ((telemetryData.MeterEnergyPurchased != 0.0) && (telemetryData.MeterEnergySold != 0.0))
+                        {
+                            telemetryData.MeterEnergyConsumed = telemetryData.PVOutputEnergyTotal + sml.Meter.EnergyPurchased - sml.Meter.EnergySold;
+                        }
                     }
 
                 }

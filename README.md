@@ -1,7 +1,5 @@
-# PV-Monitor
-A Photovoltaic monitoring application using Microsoft Azure IoT Central.
+## PV-Monitor
 
-### How does it work?
 PV-Monitor is a simple .NetCore app capturing telemetry data. This is running on Linux on a Raspberry Pi. The telemetry data captured consists of:
 
 1. Weather data from [www.openweathermap.org](http://www.openweathermap.org), as the weather impacts PV performance.

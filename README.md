@@ -9,4 +9,4 @@ PV-Monitor is a simple .NetCore app capturing telemetry data. This is running on
 3. Smart meter telemetry data leveraging its [IEC 62056-21 standard](https://en.wikipedia.org/wiki/IEC_62056) optical interface using [a USB reader](https://shop.weidmann-elektronik.de/index.php?page=product&info=24). IEC 62056-21 uses the Smart Message Language - [SML](https://wiki.wireshark.org/SML).
 
 Telemetry is sent to an IoT Central application based on the [IoT Central enery app templates](https://apps.azureiotcentral.com/build/energy).
-The device template for the app can be found [here](./blob/master/PV-Monitor.json).
+The device template for the app can be found [here](./PV-Monitor.json).

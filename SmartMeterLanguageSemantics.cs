@@ -57,12 +57,12 @@ namespace PVMonitor
 
     public enum SMLType : byte
     {
-        OctetString = 0x0,
-        Boolean = 0x4,
-        Integer = 0x5,
-        Unsigned = 0x6,
-        List = 0x7,
+        OctetString = 0x00,
         Empty = 0x01,
+        Boolean = 0x04,
+        Integer = 0x05,
+        Unsigned = 0x06,
+        List = 0x07,
         Unknown = 0xFF
     }
 

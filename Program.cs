@@ -1,4 +1,5 @@
-﻿using System;
+﻿
+using System;
 using System.Diagnostics;
 using System.Net;
 using System.Text;
@@ -14,6 +15,8 @@ namespace PVMonitor
 {
     class Program
     {
+        private const string LinuxUSBSerialPort = "/dev/ttyUSB0"; 
+        
         static async Task Main(string[] args)
         {
 #if DEBUG
@@ -31,7 +34,7 @@ namespace PVMonitor
                 System.Threading.Thread.Sleep(1000);
             }
 #endif
-            // print a list of serial ports
+            // print a list of all available serial ports for convenience
             string[] ports = SerialPort.GetPortNames();
             foreach (string port in ports)
             {
@@ -39,7 +42,7 @@ namespace PVMonitor
             }
 
             // start processing smart meter messages
-            SmartMeterLanguage sml = new SmartMeterLanguage("/dev/ttyUSB0");
+            SmartMeterLanguage sml = new SmartMeterLanguage(LinuxUSBSerialPort);
             sml.ProcessStream();
 
             DeviceClient deviceClient = null;
@@ -72,17 +75,17 @@ namespace PVMonitor
                 try
                 {
                     // read the current weather data from web service
-                    using (WebClient webClient = new WebClient())
+                    using WebClient webClient = new WebClient
                     {
-                        webClient.BaseAddress = "https://api.openweathermap.org/";
-                        var json = webClient.DownloadString("data/2.5/weather?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b");
-                        WeatherInfo weather = JsonConvert.DeserializeObject<WeatherInfo>(json);
-                        if (weather != null)
-                        {
-                            telemetryData.Temperature = weather.main.temp;
-                            telemetryData.WindSpeed = weather.wind.speed;
-                            telemetryData.CloudCover = weather.weather[0].description;
-                        }
+                        BaseAddress = "https://api.openweathermap.org/"
+                    };
+                    var json = webClient.DownloadString("data/2.5/weather?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b");
+                    WeatherInfo weather = JsonConvert.DeserializeObject<WeatherInfo>(json);
+                    if (weather != null)
+                    {
+                        telemetryData.Temperature = weather.main.temp;
+                        telemetryData.WindSpeed = weather.wind.speed;
+                        telemetryData.CloudCover = weather.weather[0].description;
                     }
                 }
                 catch (Exception ex)
@@ -93,29 +96,29 @@ namespace PVMonitor
                 try
                 {
                     // read the current converter data from web service
-                    using (WebClient webClient = new WebClient())
+                    using WebClient webClient = new WebClient
                     {
-                        webClient.BaseAddress = "http://192.168.178.31/";
-                        var json = webClient.DownloadString("solar_api/v1/GetInverterRealtimeData.cgi?Scope=Device&DeviceID=1&DataCollection=CommonInverterData");
-                        DCACConverter converter = JsonConvert.DeserializeObject<DCACConverter>(json);
-                        if (converter != null)
+                        BaseAddress = "http://192.168.178.31/"
+                    };
+                    var json = webClient.DownloadString("solar_api/v1/GetInverterRealtimeData.cgi?Scope=Device&DeviceID=1&DataCollection=CommonInverterData");
+                    DCACConverter converter = JsonConvert.DeserializeObject<DCACConverter>(json);
+                    if (converter != null)
+                    {
+                        if (converter.Body.Data.PAC != null)
                         {
-                            if (converter.Body.Data.PAC != null)
-                            {
-                                telemetryData.PVOutputPower = ((double)converter.Body.Data.PAC.Value) / 1000.0;
-                            }
-                            if (converter.Body.Data.DAY_ENERGY != null)
-                            {
-                                telemetryData.PVOutputEnergyDay = ((double)converter.Body.Data.DAY_ENERGY.Value) / 1000.0;
-                            }
-                            if (converter.Body.Data.YEAR_ENERGY != null)
-                            {
-                                telemetryData.PVOutputEnergyYear = ((double)converter.Body.Data.YEAR_ENERGY.Value) / 1000.0;
-                            }
-                            if (converter.Body.Data.TOTAL_ENERGY != null)
-                            {
-                                telemetryData.PVOutputEnergyTotal = ((double)converter.Body.Data.TOTAL_ENERGY.Value) / 1000.0;
-                            }
+                            telemetryData.PVOutputPower = ((double)converter.Body.Data.PAC.Value) / 1000.0;
+                        }
+                        if (converter.Body.Data.DAY_ENERGY != null)
+                        {
+                            telemetryData.PVOutputEnergyDay = ((double)converter.Body.Data.DAY_ENERGY.Value) / 1000.0;
+                        }
+                        if (converter.Body.Data.YEAR_ENERGY != null)
+                        {
+                            telemetryData.PVOutputEnergyYear = ((double)converter.Body.Data.YEAR_ENERGY.Value) / 1000.0;
+                        }
+                        if (converter.Body.Data.TOTAL_ENERGY != null)
+                        {
+                            telemetryData.PVOutputEnergyTotal = ((double)converter.Body.Data.TOTAL_ENERGY.Value) / 1000.0;
                         }
                     }
                 }
@@ -133,8 +136,10 @@ namespace PVMonitor
                         telemetryData.MeterEnergySold = sml.Meter.EnergySold;
                         telemetryData.MeterEnergyConsumed = 0.0;
 
-                        // calculate energy consumed from the other peices of telemetry
-                        if ((telemetryData.MeterEnergyPurchased != 0.0) && (telemetryData.MeterEnergySold != 0.0))
+                        // calculate energy consumed from the other telemetry, if available
+                        if ((telemetryData.MeterEnergyPurchased != 0.0)
+                         && (telemetryData.MeterEnergySold != 0.0)
+                         && (telemetryData.PVOutputEnergyTotal != 0.0))
                         {
                             telemetryData.MeterEnergyConsumed = telemetryData.PVOutputEnergyTotal + sml.Meter.EnergyPurchased - sml.Meter.EnergySold;
                         }

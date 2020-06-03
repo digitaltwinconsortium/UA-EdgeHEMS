@@ -19,8 +19,10 @@ namespace PVMonitor
             try
             {
                 // open the serial port
-                _serialPort = new SerialPort(serialPortName, 9600, Parity.None, 8, StopBits.One);
-                _serialPort.ReadTimeout = 2000;
+                _serialPort = new SerialPort(serialPortName, 9600, Parity.None, 8, StopBits.One)
+                {
+                    ReadTimeout = 2000
+                };
                 _serialPort.Open();
 
                 _reader = new BinaryReader(_serialPort.BaseStream);
@@ -174,7 +176,7 @@ namespace PVMonitor
                 {
                     throw new InvalidDataException("Expected CRC16 length of 2");
                 }
-                ushort CRC16 = Reverse(_reader.ReadUInt16());
+                ushort CRC16 = ByteSwap(_reader.ReadUInt16());
 
                 // process end of message
                 if (_reader.ReadByte() != Constants.EndOfMessageMarker)
@@ -209,7 +211,7 @@ namespace PVMonitor
             {
                 throw new InvalidDataException("Expected command length of 2");
             }
-            ushort command = Reverse(_reader.ReadUInt16());
+            ushort command = ByteSwap(_reader.ReadUInt16());
             switch (command)
             {
                 case Constants.PublicOpenReq:
@@ -389,7 +391,7 @@ namespace PVMonitor
                 {
                     throw new InvalidDataException("Expected unsigned length of 4");
                 }
-                uint timeStamp = Reverse(_reader.ReadUInt32());
+                uint timeStamp = ByteSwap(_reader.ReadUInt32());
             }
         }
 
@@ -554,15 +556,15 @@ namespace PVMonitor
 
                     if (length == 8)
                     {
-                        int64 = Reverse(_reader.ReadInt64());
+                        int64 = (long) ByteSwap((ulong) _reader.ReadInt64());
                     }
                     if (length == 4)
                     {
-                        int64 = Reverse(_reader.ReadInt32());
+                        int64 = ByteSwap((uint) _reader.ReadInt32());
                     }
                     if (length == 2)
                     {
-                        int64 = Reverse(_reader.ReadInt16());
+                        int64 = ByteSwap((ushort) _reader.ReadInt16());
                     }
                     if (length == 1)
                     {
@@ -585,15 +587,15 @@ namespace PVMonitor
 
                     if (length == 8)
                     {
-                        uint64 = Reverse(_reader.ReadUInt64());
+                        uint64 = ByteSwap(_reader.ReadUInt64());
                     }
                     if (length == 4)
                     {
-                        uint64 = Reverse(_reader.ReadUInt32());
+                        uint64 = ByteSwap(_reader.ReadUInt32());
                     }
                     if (length == 2)
                     {
-                        uint64 = Reverse(_reader.ReadUInt16());
+                        uint64 = ByteSwap(_reader.ReadUInt16());
                     }
                     if (length == 1)
                     {
@@ -691,28 +693,13 @@ namespace PVMonitor
             return true;
         }
 
-        public static short Reverse(short value)
+        public static ushort ByteSwap(ushort value)
         {
-            return (short)Reverse((ushort)value);
+            return (ushort) (((value & 0x00FF) << 8) |
+                             ((value & 0xFF00) >> 8));
         }
 
-        public static int Reverse(int value)
-        {
-            return (int)Reverse((uint)value);
-        }
-
-        public static long Reverse(long value)
-        {
-            return (long)Reverse((ulong)value);
-        }
-
-        public static ushort Reverse(ushort value)
-        {
-            return (ushort)(((value & 0x00FF) << 8) |
-                            ((value & 0xFF00) >> 8));
-        }
-
-        public static uint Reverse(uint value)
+        public static uint ByteSwap(uint value)
         {
             return ((value & 0x000000FF) << 24) |
                    ((value & 0x0000FF00) <<  8) |
@@ -720,7 +707,7 @@ namespace PVMonitor
                    ((value & 0xFF000000) >> 24);
         }
 
-        public static ulong Reverse(ulong value)
+        public static ulong ByteSwap(ulong value)
         {
             return ((value & 0x00000000000000FFUL) << 56) |
                    ((value & 0x000000000000FF00UL) << 40) |

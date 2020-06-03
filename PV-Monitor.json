@@ -1,0 +1,123 @@
+{
+  "@id": "urn:pvMonitor:PVMonitor_8y:1",
+  "@type": "CapabilityModel",
+  "implements": [
+    {
+      "@id": "urn:pvMonitor:PVMonitor_8y:cpmjkptyj:1",
+      "@type": "InterfaceInstance",
+      "displayName": {
+        "en": "Interface"
+      },
+      "name": "PVMonitor_5nf",
+      "schema": {
+        "@id": "urn:pvMonitor:PVMonitor_5nf:1",
+        "@type": "Interface",
+        "displayName": {
+          "en": "Interface"
+        },
+        "contents": [
+          {
+            "@id": "urn:pvMonitor:PVMonitor_5nf:Temperature:1",
+            "@type": [
+              "Telemetry",
+              "SemanticType/Temperature"
+            ],
+            "displayName": {
+              "en": "Temperature"
+            },
+            "name": "Temperature",
+            "schema": "double",
+            "unit": "Units/Temperature/celsius"
+          },
+          {
+            "@id": "urn:pvMonitor:PVMonitor_5nf:CloudCover:1",
+            "@type": "Telemetry",
+            "displayName": {
+              "en": "Cloud Cover"
+            },
+            "name": "CloudCover",
+            "schema": "string"
+          },
+          {
+            "@id": "urn:pvMonitor:PVMonitor_5nf:WindSpeed:1",
+            "@type": "Telemetry",
+            "displayName": {
+              "en": "Wind Speed"
+            },
+            "name": "WindSpeed",
+            "schema": "double"
+          },
+          {
+            "@id": "urn:pvMonitor:PVMonitor_5nf:PVOutputPower:1",
+            "@type": "Telemetry",
+            "displayName": {
+              "en": "PV Output Power"
+            },
+            "name": "PVOutputPower",
+            "schema": "double"
+          },
+          {
+            "@id": "urn:pvMonitor:PVMonitor_5nf:PVOutputEnergyDay:1",
+            "@type": "Telemetry",
+            "displayName": {
+              "en": "PV Output Energy Today"
+            },
+            "name": "PVOutputEnergyDay",
+            "schema": "double"
+          },
+          {
+            "@id": "urn:pvMonitor:PVMonitor_5nf:PVOutputEnergyYear:1",
+            "@type": "Telemetry",
+            "displayName": {
+              "en": "PV Output Energy Year"
+            },
+            "name": "PVOutputEnergyYear",
+            "schema": "double"
+          },
+          {
+            "@id": "urn:pvMonitor:PVMonitor_5nf:PVOutputEnergyTotal:1",
+            "@type": "Telemetry",
+            "displayName": {
+              "en": "PV Output Energy Total"
+            },
+            "name": "PVOutputEnergyTotal",
+            "schema": "double"
+          },
+          {
+            "@id": "urn:pvMonitor:PVMonitor_5nf:MeterEnergyPurchased:1",
+            "@type": "Telemetry",
+            "displayName": {
+              "en": "Grid Energy Purchased"
+            },
+            "name": "MeterEnergyPurchased",
+            "schema": "double"
+          },
+          {
+            "@id": "urn:pvMonitor:PVMonitor_5nf:MeterEnergySold:1",
+            "@type": "Telemetry",
+            "displayName": {
+              "en": "Energy Sold to Grid"
+            },
+            "name": "MeterEnergySold",
+            "schema": "double"
+          },
+          {
+            "@id": "urn:pvMonitor:PVMonitor_5nf:MeterEnergyConsumed:1",
+            "@type": "Telemetry",
+            "displayName": {
+              "en": "Energy Consumed"
+            },
+            "name": "MeterEnergyConsumed",
+            "schema": "double"
+          }
+        ]
+      }
+    }
+  ],
+  "displayName": {
+    "en": "PV-Monitor"
+  },
+  "@context": [
+    "http://azureiot.com/v1/contexts/IoTModel.json"
+  ]
+}

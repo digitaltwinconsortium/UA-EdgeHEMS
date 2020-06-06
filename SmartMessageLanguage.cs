@@ -7,14 +7,14 @@ using System.Threading;
 
 namespace PVMonitor
 {
-    class SmartMeterLanguage
+    class SmartMessageLanguage
     {
         private BinaryReader _reader = null;
         private SerialPort _serialPort = null;
 
         public SmartMeter Meter = new SmartMeter();
 
-        public SmartMeterLanguage(string serialPortName)
+        public SmartMessageLanguage(string serialPortName)
         {
             try
             {
@@ -523,7 +523,7 @@ namespace PVMonitor
                     throw new InvalidDataException("Expected unsigned");
                 }
                 byte unit = _reader.ReadByte();
-                if (((OBISID == Constants.PositivActiveEnergyTotal)
+                if (((OBISID == Constants.PositiveActiveEnergyTotal)
                   || (OBISID == Constants.NegativeActiveEnergyTotal))
                   && (unit != Constants.WattHours))
                 {
@@ -571,7 +571,7 @@ namespace PVMonitor
                         int64 = _reader.ReadByte();
                     }
 
-                    if (OBISID == Constants.PositivActiveEnergyTotal)
+                    if (OBISID == Constants.PositiveActiveEnergyTotal)
                     {
                         Meter.EnergyPurchased = int64 * Math.Pow(10, scaler) / 1000; // in kWh
                     }
@@ -602,7 +602,7 @@ namespace PVMonitor
                         uint64 = _reader.ReadByte();
                     }
 
-                    if (OBISID == Constants.PositivActiveEnergyTotal)
+                    if (OBISID == Constants.PositiveActiveEnergyTotal)
                     {
                         Meter.EnergyPurchased = uint64 * Math.Pow(10, scaler) / 1000; // in kWh
                     }

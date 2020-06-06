@@ -42,7 +42,7 @@ namespace PVMonitor
             }
 
             // start processing smart meter messages
-            SmartMeterLanguage sml = new SmartMeterLanguage(LinuxUSBSerialPort);
+            SmartMessageLanguage sml = new SmartMessageLanguage(LinuxUSBSerialPort);
             sml.ProcessStream();
 
             DeviceClient deviceClient = null;

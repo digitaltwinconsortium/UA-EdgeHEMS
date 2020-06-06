@@ -48,7 +48,7 @@ namespace PVMonitor
         public const ushort AttentionRes = 0xFF01;
 
         // OBIS identifiers
-        public const string PositivActiveEnergyTotal = "01-00-01-08-00-FF";  // energy purchased from the grid
+        public const string PositiveActiveEnergyTotal = "01-00-01-08-00-FF";  // energy purchased from the grid
         public const string NegativeActiveEnergyTotal = "01-00-02-08-00-FF"; // energy sold to the grid
 
         // DLMS units

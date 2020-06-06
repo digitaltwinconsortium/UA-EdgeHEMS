@@ -1,5 +1,5 @@
 {
-  "@id": "urn:pvMonitor:PVMonitor_8y:1",
+  "@id": "urn:pvMonitor:PVMonitor_8y:2",
   "@type": "CapabilityModel",
   "implements": [
     {
@@ -10,7 +10,7 @@
       },
       "name": "PVMonitor_5nf",
       "schema": {
-        "@id": "urn:pvMonitor:PVMonitor_5nf:1",
+        "@id": "urn:pvMonitor:PVMonitor_5nf:2",
         "@type": "Interface",
         "displayName": {
           "en": "Interface"
@@ -108,6 +108,30 @@
               "en": "Energy Consumed"
             },
             "name": "MeterEnergyConsumed",
+            "schema": "double"
+          },
+          {
+            "@id": "urn:pvMonitor:PVMonitor_5nf:EnergyCost:2",
+            "@type": "Telemetry",
+            "displayName": {
+              "en": "Energy Cost"
+            },
+            "name": "EnergyCost",
+            "displayUnit": {
+              "en": "Euro"
+            },
+            "schema": "double"
+          },
+          {
+            "@id": "urn:pvMonitor:PVMonitor_5nf:EnergyProfit:2",
+            "@type": "Telemetry",
+            "displayName": {
+              "en": "Energy Profit"
+            },
+            "name": "EnergyProfit",
+            "displayUnit": {
+              "en": "Euro"
+            },
             "schema": "double"
           }
         ]

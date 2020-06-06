@@ -1,21 +1,24 @@
 ﻿
-using System;
-using System.Diagnostics;
-using System.Net;
-using System.Text;
-using System.Threading.Tasks;
-using System.IO.Ports;
 using Microsoft.Azure.Devices.Client;
 using Microsoft.Azure.Devices.Provisioning.Client;
 using Microsoft.Azure.Devices.Provisioning.Client.Transport;
 using Microsoft.Azure.Devices.Shared;
 using Newtonsoft.Json;
+using System;
+using System.Diagnostics;
+using System.IO.Ports;
+using System.Net;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace PVMonitor
 {
     class Program
     {
-        private const string LinuxUSBSerialPort = "/dev/ttyUSB0"; 
+        private const string LinuxUSBSerialPort = "/dev/ttyUSB0";
+
+        private const float KWhCost = 0.2850f;
+        private const float KWhProfit = 0.1018f;
         
         static async Task Main(string[] args)
         {
@@ -134,9 +137,12 @@ namespace PVMonitor
                     {
                         telemetryData.MeterEnergyPurchased = sml.Meter.EnergyPurchased;
                         telemetryData.MeterEnergySold = sml.Meter.EnergySold;
-                        telemetryData.MeterEnergyConsumed = 0.0;
+
+                        telemetryData.EnergyCost = telemetryData.MeterEnergyPurchased * KWhCost;
+                        telemetryData.EnergyProfit = telemetryData.MeterEnergySold * KWhProfit;
 
                         // calculate energy consumed from the other telemetry, if available
+                        telemetryData.MeterEnergyConsumed = 0.0;
                         if ((telemetryData.MeterEnergyPurchased != 0.0)
                          && (telemetryData.MeterEnergySold != 0.0)
                          && (telemetryData.PVOutputEnergyTotal != 0.0))

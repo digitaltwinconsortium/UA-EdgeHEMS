@@ -1,4 +1,5 @@
-﻿namespace PVMonitor
+﻿
+namespace PVMonitor
 {
     public sealed class TelemetryData
     {
@@ -15,6 +16,8 @@
             MeterEnergyPurchased = 0.0;
             MeterEnergySold = 0.0;
             MeterEnergyConsumed = 0.0;
+            EnergyCost = 0.0;
+            EnergyProfit = 0.0;
         }
 
         public double Temperature { get; set; }
@@ -36,5 +39,9 @@
         public double MeterEnergySold { get; set; }
 
         public double MeterEnergyConsumed { get; set; }
+
+        public double EnergyCost { get; set; }
+
+        public double EnergyProfit { get; set; }
     }
 }

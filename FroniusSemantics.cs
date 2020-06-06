@@ -1,4 +1,5 @@
-﻿namespace PVMonitor
+﻿
+namespace PVMonitor
 {
     public sealed class DAYENERGY
     {

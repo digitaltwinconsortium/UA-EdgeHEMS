@@ -137,6 +137,7 @@ namespace PVMonitor
                     {
                         telemetryData.MeterEnergyPurchased = sml.Meter.EnergyPurchased;
                         telemetryData.MeterEnergySold = sml.Meter.EnergySold;
+                        telemetryData.CurrentPower = sml.Meter.CurrentPower;
 
                         telemetryData.EnergyCost = telemetryData.MeterEnergyPurchased * KWhCost;
                         telemetryData.EnergyProfit = telemetryData.MeterEnergySold * KWhProfit;

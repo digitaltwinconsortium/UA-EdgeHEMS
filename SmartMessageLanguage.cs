@@ -516,13 +516,19 @@ namespace PVMonitor
 
             // process unit (optional)
             ProcessNextType(out type, out length);
-            if (type != SMLType.Empty)
+            byte unit = 0;
+            if(type != SMLType.Empty)
             {
                 if (type != SMLType.Unsigned)
                 {
                     throw new InvalidDataException("Expected unsigned");
                 }
-                byte unit = _reader.ReadByte();
+                if (length != 1)
+                {
+                    throw new InvalidDataException("Expected length of 1");
+                }
+
+                unit = _reader.ReadByte();
                 if (((OBISID == Constants.PositiveActiveEnergyTotal)
                   || (OBISID == Constants.NegativeActiveEnergyTotal))
                   && (unit != Constants.WattHours))
@@ -533,14 +539,19 @@ namespace PVMonitor
 
             // process scaler (optional)
             ProcessNextType(out type, out length);
-            int scaler = 0;
+            sbyte scaler = 0;
             if (type != SMLType.Empty)
             {
                 if (type != SMLType.Integer)
                 {
                     throw new InvalidDataException("Expected integer");
                 }
-                scaler = _reader.ReadByte();
+                if (length != 1)
+                {
+                    throw new InvalidDataException("Expected length of 1");
+                }
+
+                scaler = (sbyte)_reader.ReadByte();
             }
 
             // process value
@@ -579,6 +590,10 @@ namespace PVMonitor
                     {
                         Meter.EnergySold = int64 * Math.Pow(10, scaler) / 1000; // in kWh
                     }
+                    if (OBISID == Constants.ActivePowerTotal)
+                    {
+                        Meter.CurrentPower = int64 * Math.Pow(10, scaler); // in Watts
+                    }
 
                     break;
 
@@ -610,7 +625,11 @@ namespace PVMonitor
                     {
                         Meter.EnergySold = uint64 * Math.Pow(10, scaler) / 1000; // in kWh
                     }
-                    
+                    if (OBISID == Constants.ActivePowerTotal)
+                    {
+                        Meter.CurrentPower = uint64 * Math.Pow(10, scaler); // in Watts
+                    }
+
                     break;
 
                 default:
@@ -668,26 +687,27 @@ namespace PVMonitor
                 return false;
             }
             
+            type = (SMLType)((byteRead & Constants.TypeMask) >> 4);
+
+            length = byteRead & Constants.LengthMask;
             if ((byteRead & Constants.ExtraByteMask) != 0)
             {
-                throw new NotImplementedException("Multi-byte length is not supported");
-            }
-
-            // special case: an empty optional field is encoded with 0x01
-            if (byteRead == 0x01)
-            {
-                type = SMLType.Empty;
-                length = 0;
-                return true;
+                // read the extra length byte
+                byte extaLength = _reader.ReadByte();
+                
+                length = (length << 4) | extaLength;
             }
             
-            type = (SMLType)((byteRead & Constants.TypeMask) >> 4);
-            length = byteRead & Constants.LengthMask;
-
             // list types don't count the type byte as part of the length, while all others do
             if (type != SMLType.List)
             {
                 length--;
+            }
+
+            // special case: an empty optional field is encoded as an empty string
+            if ((type == SMLType.OctetString) && (length == 0))
+            {
+                type = SMLType.Empty;
             }
 
             return true;

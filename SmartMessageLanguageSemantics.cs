@@ -50,6 +50,7 @@ namespace PVMonitor
         // OBIS identifiers
         public const string PositiveActiveEnergyTotal = "01-00-01-08-00-FF";  // energy purchased from the grid
         public const string NegativeActiveEnergyTotal = "01-00-02-08-00-FF"; // energy sold to the grid
+        public const string ActivePowerTotal = "01-00-10-07-00-FF"; // current power consumed
 
         // DLMS units
         public const byte WattHours = 0x1E;
@@ -73,10 +74,13 @@ namespace PVMonitor
             // init members
             EnergyPurchased = 0.0;
             EnergySold = 0.0;
+            CurrentPower = 0.0;
         }
 
         public double EnergyPurchased { get; set; }
 
         public double EnergySold { get; set; }
+
+        public double CurrentPower { get; set; }
     }
 }

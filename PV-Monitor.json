@@ -1,5 +1,5 @@
 {
-  "@id": "urn:pvMonitor:PVMonitor_8y:2",
+  "@id": "urn:pvMonitor:PVMonitor_8y:6",
   "@type": "CapabilityModel",
   "implements": [
     {
@@ -10,7 +10,7 @@
       },
       "name": "PVMonitor_5nf",
       "schema": {
-        "@id": "urn:pvMonitor:PVMonitor_5nf:2",
+        "@id": "urn:pvMonitor:PVMonitor_5nf:6",
         "@type": "Interface",
         "displayName": {
           "en": "Interface"
@@ -23,7 +23,7 @@
               "SemanticType/Temperature"
             ],
             "displayName": {
-              "en": "Temperature"
+              "en": "Outside Air Temperature (C)"
             },
             "name": "Temperature",
             "schema": "double",
@@ -51,7 +51,7 @@
             "@id": "urn:pvMonitor:PVMonitor_5nf:PVOutputPower:1",
             "@type": "Telemetry",
             "displayName": {
-              "en": "PV Output Power"
+              "en": "PV Output Power (Watts)"
             },
             "name": "PVOutputPower",
             "schema": "double"
@@ -60,7 +60,7 @@
             "@id": "urn:pvMonitor:PVMonitor_5nf:PVOutputEnergyDay:1",
             "@type": "Telemetry",
             "displayName": {
-              "en": "PV Output Energy Today"
+              "en": "PV Output Energy Today (kWh)"
             },
             "name": "PVOutputEnergyDay",
             "schema": "double"
@@ -69,7 +69,7 @@
             "@id": "urn:pvMonitor:PVMonitor_5nf:PVOutputEnergyYear:1",
             "@type": "Telemetry",
             "displayName": {
-              "en": "PV Output Energy Year"
+              "en": "PV Output Energy Year (kWh)"
             },
             "name": "PVOutputEnergyYear",
             "schema": "double"
@@ -78,7 +78,7 @@
             "@id": "urn:pvMonitor:PVMonitor_5nf:PVOutputEnergyTotal:1",
             "@type": "Telemetry",
             "displayName": {
-              "en": "PV Output Energy Total"
+              "en": "PV Output Energy Total (kWh)"
             },
             "name": "PVOutputEnergyTotal",
             "schema": "double"
@@ -87,7 +87,7 @@
             "@id": "urn:pvMonitor:PVMonitor_5nf:MeterEnergyPurchased:1",
             "@type": "Telemetry",
             "displayName": {
-              "en": "Grid Energy Purchased"
+              "en": "Grid Energy Purchased (kWh)"
             },
             "name": "MeterEnergyPurchased",
             "schema": "double"
@@ -96,7 +96,7 @@
             "@id": "urn:pvMonitor:PVMonitor_5nf:MeterEnergySold:1",
             "@type": "Telemetry",
             "displayName": {
-              "en": "Energy Sold to Grid"
+              "en": "Energy Sold to Grid (kWh)"
             },
             "name": "MeterEnergySold",
             "schema": "double"
@@ -105,7 +105,7 @@
             "@id": "urn:pvMonitor:PVMonitor_5nf:MeterEnergyConsumed:1",
             "@type": "Telemetry",
             "displayName": {
-              "en": "Energy Consumed"
+              "en": "Energy Consumed (kWh)"
             },
             "name": "MeterEnergyConsumed",
             "schema": "double"
@@ -114,7 +114,7 @@
             "@id": "urn:pvMonitor:PVMonitor_5nf:EnergyCost:2",
             "@type": "Telemetry",
             "displayName": {
-              "en": "Energy Cost"
+              "en": "Energy Cost (Euro)"
             },
             "name": "EnergyCost",
             "displayUnit": {
@@ -126,12 +126,42 @@
             "@id": "urn:pvMonitor:PVMonitor_5nf:EnergyProfit:2",
             "@type": "Telemetry",
             "displayName": {
-              "en": "Energy Profit"
+              "en": "Energy Profit (Euro)"
             },
             "name": "EnergyProfit",
             "displayUnit": {
               "en": "Euro"
             },
+            "schema": "double"
+          },
+          {
+            "@id": "urn:pvMonitor:PVMonitor_5nf:CurrentPower:3",
+            "@type": "Telemetry",
+            "displayName": {
+              "en": "Current Power Meter (Watts)"
+            },
+            "name": "CurrentPower",
+            "displayUnit": {
+              "en": "Watt"
+            },
+            "schema": "double"
+          },
+          {
+            "@id": "urn:pvMonitor:PVMonitor_5nf:CurrentPowerConsumedWatts:4",
+            "@type": "Telemetry",
+            "displayName": {
+              "en": "Dummy"
+            },
+            "name": "CurrentPowerConsumedWatts",
+            "schema": "double"
+          },
+          {
+            "@id": "urn:pvMonitor:PVMonitor_5nf:CurrentPowerConsumed:5",
+            "@type": "Telemetry",
+            "displayName": {
+              "en": "Current Power Consumed (Watts)"
+            },
+            "name": "CurrentPowerConsumed",
             "schema": "double"
           }
         ]

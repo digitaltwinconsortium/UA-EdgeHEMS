@@ -109,7 +109,7 @@ namespace PVMonitor
                     {
                         if (converter.Body.Data.PAC != null)
                         {
-                            telemetryData.PVOutputPower = ((double)converter.Body.Data.PAC.Value);
+                            telemetryData.PVOutputPower = converter.Body.Data.PAC.Value;
                         }
                         if (converter.Body.Data.DAY_ENERGY != null)
                         {

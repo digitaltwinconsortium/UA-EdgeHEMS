@@ -5,7 +5,7 @@ namespace PVMonitor
     {
         public string Unit { get; set; }
 
-        public int Value { get; set; }
+        public double Value { get; set; }
     }
 
     public sealed class DeviceStatus
@@ -48,7 +48,7 @@ namespace PVMonitor
     {
         public string Unit { get; set; }
 
-        public int Value { get; set; }
+        public double Value { get; set; }
     }
 
     public sealed class TOTALENERGY

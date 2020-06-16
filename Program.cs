@@ -109,7 +109,7 @@ namespace PVMonitor
                     {
                         if (converter.Body.Data.PAC != null)
                         {
-                            telemetryData.PVOutputPower = ((double)converter.Body.Data.PAC.Value) / 1000.0;
+                            telemetryData.PVOutputPower = ((double)converter.Body.Data.PAC.Value);
                         }
                         if (converter.Body.Data.DAY_ENERGY != null)
                         {
@@ -149,6 +149,7 @@ namespace PVMonitor
                          && (telemetryData.PVOutputEnergyTotal != 0.0))
                         {
                             telemetryData.MeterEnergyConsumed = telemetryData.PVOutputEnergyTotal + sml.Meter.EnergyPurchased - sml.Meter.EnergySold;
+                            telemetryData.CurrentPowerConsumed = telemetryData.PVOutputPower + sml.Meter.CurrentPower;
                         }
                     }
 

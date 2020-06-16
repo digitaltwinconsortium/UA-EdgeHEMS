@@ -19,6 +19,7 @@ namespace PVMonitor
             EnergyCost = 0.0;
             EnergyProfit = 0.0;
             CurrentPower = 0.0;
+            CurrentPowerConsumed = 0.0;
         }
 
         public double Temperature { get; set; }
@@ -46,5 +47,7 @@ namespace PVMonitor
         public double EnergyProfit { get; set; }
 
         public double CurrentPower { get; set; }
+
+        public double CurrentPowerConsumed { get; set; }
     }
 }

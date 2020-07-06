@@ -3,6 +3,7 @@ using Microsoft.Azure.Devices.Client;
 using Microsoft.Azure.Devices.Provisioning.Client;
 using Microsoft.Azure.Devices.Provisioning.Client.Transport;
 using Microsoft.Azure.Devices.Shared;
+using ModbusTcp;
 using Newtonsoft.Json;
 using System;
 using System.Diagnostics;
@@ -16,6 +17,8 @@ namespace PVMonitor
     class Program
     {
         private const string LinuxUSBSerialPort = "/dev/ttyUSB0";
+        private const string FroniusInverterBaseAddress = "192.168.178.31";
+        private const int FroniusInverterModbusTCPPort = 502;
 
         private const float KWhCost = 0.2850f;
         private const float KWhProfit = 0.1018f;
@@ -37,6 +40,13 @@ namespace PVMonitor
                 System.Threading.Thread.Sleep(1000);
             }
 #endif
+            // init Modbus TCP client
+            ModbusClient client = new ModbusClient(FroniusInverterBaseAddress, FroniusInverterModbusTCPPort);
+            client.Init();
+
+            //short[] r = await client.ReadRegistersAsync(40005, 4);
+
+
             // print a list of all available serial ports for convenience
             string[] ports = SerialPort.GetPortNames();
             foreach (string port in ports)
@@ -101,7 +111,7 @@ namespace PVMonitor
                     // read the current converter data from web service
                     using WebClient webClient = new WebClient
                     {
-                        BaseAddress = "http://192.168.178.31/"
+                        BaseAddress = FroniusInverterBaseAddress
                     };
                     var json = webClient.DownloadString("solar_api/v1/GetInverterRealtimeData.cgi?Scope=Device&DeviceID=1&DataCollection=CommonInverterData");
                     DCACConverter converter = JsonConvert.DeserializeObject<DCACConverter>(json);

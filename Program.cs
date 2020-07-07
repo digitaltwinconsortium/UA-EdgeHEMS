@@ -43,6 +43,7 @@ namespace PVMonitor
             ModbusTCPClient client = new ModbusTCPClient();
             client.Connect(FroniusInverterBaseAddress, FroniusInverterModbusTCPPort);
             string manufacturer = Encoding.ASCII.GetString(client.ReadHoldingRegisters(1, 40004, 4));
+            byte[] WMaxLimit = client.ReadHoldingRegisters(1, 40242, 1);
 
             // print a list of all available serial ports for convenience
             string[] ports = SerialPort.GetPortNames();

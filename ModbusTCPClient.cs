@@ -118,7 +118,6 @@ namespace PVMonitor
         public byte[] ReadHoldingRegisters(byte unitID, ushort registerBaseAddress, ushort count)
         {
             ApplicationDataUnit aduRequest = new ApplicationDataUnit();
-
             aduRequest.TransactionID = transactionID++;
             aduRequest.Length = 6;
             aduRequest.UnitID = unitID;

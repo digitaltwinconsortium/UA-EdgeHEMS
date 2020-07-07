@@ -3,7 +3,6 @@ using Microsoft.Azure.Devices.Client;
 using Microsoft.Azure.Devices.Provisioning.Client;
 using Microsoft.Azure.Devices.Provisioning.Client.Transport;
 using Microsoft.Azure.Devices.Shared;
-using ModbusTcp;
 using Newtonsoft.Json;
 using System;
 using System.Diagnostics;
@@ -41,11 +40,9 @@ namespace PVMonitor
             }
 #endif
             // init Modbus TCP client
-            ModbusClient client = new ModbusClient(FroniusInverterBaseAddress, FroniusInverterModbusTCPPort);
-            client.Init();
-
-            //short[] r = await client.ReadRegistersAsync(40005, 4);
-
+            ModbusTCPClient client = new ModbusTCPClient();
+            client.Connect(FroniusInverterBaseAddress, FroniusInverterModbusTCPPort);
+            string manufacturer = Encoding.ASCII.GetString(client.ReadHoldingRegisters(1, 40004, 4));
 
             // print a list of all available serial ports for convenience
             string[] ports = SerialPort.GetPortNames();

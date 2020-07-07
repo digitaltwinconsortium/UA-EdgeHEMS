@@ -1,0 +1,7 @@
+﻿
+namespace PVMonitor
+{
+    class SunSpecSemantics
+    {
+    }
+}

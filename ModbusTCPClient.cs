@@ -22,7 +22,7 @@ namespace PVMonitor
 
         public byte FunctionCode;
 
-        public byte[] Data = new byte[maxADU - headerLength];
+        public byte[] Payload = new byte[maxADU - headerLength];
 
         public void CopyADUToNetworkBuffer(byte[] buffer)
         {
@@ -43,8 +43,8 @@ namespace PVMonitor
             buffer[6] = UnitID;
             
             buffer[7] = FunctionCode;
-            
-            Data.CopyTo(buffer, 8);
+
+            Payload.CopyTo(buffer, 8);
         }
 
         public void CopyHeaderFromNetworkBuffer(byte[] buffer)
@@ -88,7 +88,7 @@ namespace PVMonitor
                 case 2: throw new Exception("Illegal data address");
                 case 3: throw new Exception("Illegal data value");
                 case 4: throw new Exception("Server failure");
-                case 5: throw new Exception("Acknowledged");
+                case 5: throw new Exception("Acknowledged only");
                 case 6: throw new Exception("Busy");
                 case 11: throw new Exception("Target unit failed to respond");
                 default: throw new Exception("Unknown error");
@@ -123,10 +123,10 @@ namespace PVMonitor
             aduRequest.UnitID = unitID;
             aduRequest.FunctionCode = 3;
 
-            aduRequest.Data[0] = (byte) (registerBaseAddress >> 8);
-            aduRequest.Data[1] = (byte) (registerBaseAddress & 0x00FF);
-            aduRequest.Data[2] = (byte) (count >> 8);
-            aduRequest.Data[3] = (byte) (count & 0x00FF);
+            aduRequest.Payload[0] = (byte) (registerBaseAddress >> 8);
+            aduRequest.Payload[1] = (byte) (registerBaseAddress & 0x00FF);
+            aduRequest.Payload[2] = (byte) (count >> 8);
+            aduRequest.Payload[3] = (byte) (count & 0x00FF);
             
             byte[] buffer = new byte[ApplicationDataUnit.maxADU];
             aduRequest.CopyADUToNetworkBuffer(buffer);

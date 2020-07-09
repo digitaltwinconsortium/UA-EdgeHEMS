@@ -1,7 +1,7 @@
 ﻿
 namespace PVMonitor
 {
-    static class Constants
+    static class SMLConstants
     {
         // masks
         public const byte ExtraByteMask = 0x80;

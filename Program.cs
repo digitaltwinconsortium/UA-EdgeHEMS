@@ -42,8 +42,25 @@ namespace PVMonitor
             // init Modbus TCP client
             ModbusTCPClient client = new ModbusTCPClient();
             client.Connect(FroniusInverterBaseAddress, FroniusInverterModbusTCPPort);
-            string manufacturer = Encoding.ASCII.GetString(client.ReadHoldingRegisters(1, 40004, 4));
-            byte[] WMaxLimit = client.ReadHoldingRegisters(1, 40242, 1);
+            
+            // check
+            byte[] WMaxLimit = client.ReadHoldingRegisters(
+                1, // inverter unit#
+                SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
+                SunSpecInverterModbusRegisterMapFloat.WMaxLimPctLength);
+
+            // go to 50% with immediate effect without timeout
+            ushort InverterPowerOutputPercent = 50;
+            client.WriteHoldingRegisters(
+                1, // inverter unit#
+                SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
+                new ushort[] { (ushort) (InverterPowerOutputPercent * 100), 0, 0, 0, 1});
+
+            // check
+            WMaxLimit = client.ReadHoldingRegisters(
+                1, // inverter unit#
+                SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
+                SunSpecInverterModbusRegisterMapFloat.WMaxLimPctLength);
 
             // print a list of all available serial ports for convenience
             string[] ports = SerialPort.GetPortNames();

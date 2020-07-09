@@ -51,19 +51,19 @@ namespace PVMonitor
 
                         // read the fill bytes
                         byte byteRead = _reader.ReadByte();
-                        while (byteRead == Constants.FillByteMarker)
+                        while (byteRead == SMLConstants.FillByteMarker)
                         {
                             byteRead = _reader.ReadByte();
                         }
 
                         // read the escape sequence at the end
-                        while (byteRead == Constants.EscapeMarker)
+                        while (byteRead == SMLConstants.EscapeMarker)
                         {
                             byteRead = _reader.ReadByte();
                         }
 
                         // check the file end marker
-                        if (byteRead != Constants.FileEndMarker)
+                        if (byteRead != SMLConstants.FileEndMarker)
                         {
                             throw new InvalidDataException("Expected file end marker");
                         }
@@ -82,17 +82,17 @@ namespace PVMonitor
             while (true)
             {
                 // find first part of escape marker
-                while (_reader.ReadByte() != Constants.EscapeMarker);
+                while (_reader.ReadByte() != SMLConstants.EscapeMarker);
                 
                 // the next 3 bytes must also be the escape marker, but we need to read them a byte at a time
-                if (_reader.ReadByte() == Constants.EscapeMarker)
+                if (_reader.ReadByte() == SMLConstants.EscapeMarker)
                 {
-                    if (_reader.ReadByte() == Constants.EscapeMarker)
+                    if (_reader.ReadByte() == SMLConstants.EscapeMarker)
                     {
-                        if (_reader.ReadByte() == Constants.EscapeMarker)
+                        if (_reader.ReadByte() == SMLConstants.EscapeMarker)
                         {
                             // we found it! Next, read the file begin sequence
-                            if (_reader.ReadUInt32() == Constants.FileBeginMarker)
+                            if (_reader.ReadUInt32() == SMLConstants.FileBeginMarker)
                             {
                                 // we are really at the begining of a message (and not at the end!)
                                 break;
@@ -179,7 +179,7 @@ namespace PVMonitor
                 ushort CRC16 = Utils.ByteSwap(_reader.ReadUInt16());
 
                 // process end of message
-                if (_reader.ReadByte() != Constants.EndOfMessageMarker)
+                if (_reader.ReadByte() != SMLConstants.EndOfMessageMarker)
                 {
                     throw new InvalidDataException("Expected end of message flag");
                 }
@@ -214,67 +214,67 @@ namespace PVMonitor
             ushort command = Utils.ByteSwap(_reader.ReadUInt16());
             switch (command)
             {
-                case Constants.PublicOpenReq:
+                case SMLConstants.PublicOpenReq:
                     throw new NotImplementedException();
                 
-                case Constants.PublicOpenRes:
+                case SMLConstants.PublicOpenRes:
                     ProcessOpenResponse();
                     break;
                 
-                case Constants.PublicCloseReq:
+                case SMLConstants.PublicCloseReq:
                     throw new NotImplementedException();
                 
-                case Constants.PublicCloseRes:
+                case SMLConstants.PublicCloseRes:
                     ProcessCloseResponse();
                     break;
                 
-                case Constants.GetProfilePackReq:
+                case SMLConstants.GetProfilePackReq:
                     throw new NotImplementedException();
                 
-                case Constants.GetProfilePackRes:
+                case SMLConstants.GetProfilePackRes:
                     throw new NotImplementedException();
                 
-                case Constants.GetProfileListReq:
+                case SMLConstants.GetProfileListReq:
                     throw new NotImplementedException();
                 
-                case Constants.GetProfileListRes:
+                case SMLConstants.GetProfileListRes:
                     throw new NotImplementedException();
                 
-                case Constants.GetProcParameterReq:
+                case SMLConstants.GetProcParameterReq:
                     throw new NotImplementedException();
                 
-                case Constants.GetProcParameterRes:
+                case SMLConstants.GetProcParameterRes:
                     throw new NotImplementedException();
                 
-                case Constants.SetProcParameterRes:
+                case SMLConstants.SetProcParameterRes:
                     throw new NotImplementedException();
                 
-                case Constants.GetListReq:
+                case SMLConstants.GetListReq:
                     throw new NotImplementedException();
                 
-                case Constants.GetListRes:
+                case SMLConstants.GetListRes:
                     ProcessGetListResponse();
                     break;
                 
-                case Constants.GetCosemReq:
+                case SMLConstants.GetCosemReq:
                     throw new NotImplementedException();
                 
-                case Constants.GetCosemRes:
+                case SMLConstants.GetCosemRes:
                     throw new NotImplementedException();
                 
-                case Constants.SetCosemReq:
+                case SMLConstants.SetCosemReq:
                     throw new NotImplementedException();
                 
-                case Constants.SetCosemRes:
+                case SMLConstants.SetCosemRes:
                     throw new NotImplementedException();
                 
-                case Constants.ActionCosemReq:
+                case SMLConstants.ActionCosemReq:
                     throw new NotImplementedException();
                 
-                case Constants.ActionCosemRes:
+                case SMLConstants.ActionCosemRes:
                     throw new NotImplementedException();
                 
-                case Constants.AttentionRes:
+                case SMLConstants.AttentionRes:
                     throw new NotImplementedException();
                 
                 default:
@@ -529,9 +529,9 @@ namespace PVMonitor
                 }
 
                 unit = _reader.ReadByte();
-                if (((OBISID == Constants.PositiveActiveEnergyTotal)
-                  || (OBISID == Constants.NegativeActiveEnergyTotal))
-                  && (unit != Constants.WattHours))
+                if (((OBISID == SMLConstants.PositiveActiveEnergyTotal)
+                  || (OBISID == SMLConstants.NegativeActiveEnergyTotal))
+                  && (unit != SMLConstants.WattHours))
                 {
                     throw new InvalidDataException("Expected watt-hours for units");
                 }
@@ -582,15 +582,15 @@ namespace PVMonitor
                         int64 = _reader.ReadByte();
                     }
 
-                    if (OBISID == Constants.PositiveActiveEnergyTotal)
+                    if (OBISID == SMLConstants.PositiveActiveEnergyTotal)
                     {
                         Meter.EnergyPurchased = int64 * Math.Pow(10, scaler) / 1000; // in kWh
                     }
-                    if (OBISID == Constants.NegativeActiveEnergyTotal)
+                    if (OBISID == SMLConstants.NegativeActiveEnergyTotal)
                     {
                         Meter.EnergySold = int64 * Math.Pow(10, scaler) / 1000; // in kWh
                     }
-                    if (OBISID == Constants.ActivePowerTotal)
+                    if (OBISID == SMLConstants.ActivePowerTotal)
                     {
                         Meter.CurrentPower = int64 * Math.Pow(10, scaler); // in Watts
                     }
@@ -617,15 +617,15 @@ namespace PVMonitor
                         uint64 = _reader.ReadByte();
                     }
 
-                    if (OBISID == Constants.PositiveActiveEnergyTotal)
+                    if (OBISID == SMLConstants.PositiveActiveEnergyTotal)
                     {
                         Meter.EnergyPurchased = uint64 * Math.Pow(10, scaler) / 1000; // in kWh
                     }
-                    if (OBISID == Constants.NegativeActiveEnergyTotal)
+                    if (OBISID == SMLConstants.NegativeActiveEnergyTotal)
                     {
                         Meter.EnergySold = uint64 * Math.Pow(10, scaler) / 1000; // in kWh
                     }
-                    if (OBISID == Constants.ActivePowerTotal)
+                    if (OBISID == SMLConstants.ActivePowerTotal)
                     {
                         Meter.CurrentPower = uint64 * Math.Pow(10, scaler); // in Watts
                     }
@@ -680,17 +680,17 @@ namespace PVMonitor
             byte byteRead = _reader.ReadByte();
 
             // check if we came across an EoM marker
-            if (byteRead == Constants.EndOfMessageMarker)
+            if (byteRead == SMLConstants.EndOfMessageMarker)
             {
                 type = SMLType.Unknown;
                 length = 0;
                 return false;
             }
             
-            type = (SMLType)((byteRead & Constants.TypeMask) >> 4);
+            type = (SMLType)((byteRead & SMLConstants.TypeMask) >> 4);
 
-            length = byteRead & Constants.LengthMask;
-            if ((byteRead & Constants.ExtraByteMask) != 0)
+            length = byteRead & SMLConstants.LengthMask;
+            if ((byteRead & SMLConstants.ExtraByteMask) != 0)
             {
                 // read the extra length byte
                 byte extaLength = _reader.ReadByte();

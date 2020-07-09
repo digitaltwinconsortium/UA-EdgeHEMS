@@ -88,8 +88,11 @@ namespace PVMonitor
                 case 2: throw new Exception("Illegal data address");
                 case 3: throw new Exception("Illegal data value");
                 case 4: throw new Exception("Server failure");
-                case 5: throw new Exception("Acknowledged only");
-                case 6: throw new Exception("Busy");
+                case 5: throw new Exception("Acknowledge");
+                case 6: throw new Exception("Server busy");
+                case 7: throw new Exception("Negative acknowledge");
+                case 8: throw new Exception("Memory parity error");
+                case 10: throw new Exception("Gateway path unavailable");
                 case 11: throw new Exception("Target unit failed to respond");
                 default: throw new Exception("Unknown error");
             }
@@ -177,14 +180,76 @@ namespace PVMonitor
             return responseBuffer;
         }
 
-        public void WriteRegister(byte unitID, ushort registerBaseAddress, ushort value)
+        public void WriteHoldingRegisters(byte unitID, ushort registerBaseAddress, ushort[] values)
         {
-            throw new NotImplementedException();
-        }
+            if ((11 + (values.Length * 2)) > ApplicationDataUnit.maxADU)
+            {
+                throw new ArgumentException("Too many values");
+            }
 
-        public void WriteRegisters(byte unitID, ushort registerBaseAddress, ushort[] values)
-        {
-            throw new NotImplementedException();
+            ApplicationDataUnit aduRequest = new ApplicationDataUnit();
+            aduRequest.TransactionID = transactionID++;
+            aduRequest.Length = (ushort) (7 + (values.Length * 2));
+            aduRequest.UnitID = unitID;
+            aduRequest.FunctionCode = 16;
+
+            aduRequest.Payload[0] = (byte) (registerBaseAddress >> 8);
+            aduRequest.Payload[1] = (byte) (registerBaseAddress & 0x00FF);
+            aduRequest.Payload[2] = (byte) (((ushort) values.Length) >> 8);
+            aduRequest.Payload[3] = (byte) (((ushort) values.Length) & 0x00FF);
+            aduRequest.Payload[4] = (byte) (values.Length * 2);
+
+            int payloadIndex = 5;
+            foreach(ushort value in values)
+            {
+                aduRequest.Payload[payloadIndex++] = (byte) (value >> 8);
+                aduRequest.Payload[payloadIndex++] = (byte) (value & 0x00FF);
+            }
+
+            byte[] buffer = new byte[ApplicationDataUnit.maxADU];
+            aduRequest.CopyADUToNetworkBuffer(buffer);
+
+            // send request to Modbus server
+            tcpClient.GetStream().Write(buffer, 0, ApplicationDataUnit.headerLength + 5 + (values.Length * 2));
+
+            // read response
+            int numBytesRead = tcpClient.GetStream().Read(buffer, 0, ApplicationDataUnit.headerLength + 4);
+            if (numBytesRead != ApplicationDataUnit.headerLength + 4)
+            {
+                throw new EndOfStreamException();
+            }
+
+            ApplicationDataUnit aduResponse = new ApplicationDataUnit();
+            aduResponse.CopyHeaderFromNetworkBuffer(buffer);
+
+            // check for error
+            if ((aduResponse.FunctionCode & errorFlag) > 0)
+            {
+                // read error
+                int errorCode = tcpClient.GetStream().ReadByte();
+                if (errorCode == -1)
+                {
+                    throw new EndOfStreamException();
+                }
+                else
+                {
+                    HandlerError((byte)errorCode);
+                }
+            }
+
+            // check address written
+            if ((buffer[8] != (registerBaseAddress >> 8))
+             && (buffer[9] != (registerBaseAddress & 0x00FF)))
+            {
+                throw new Exception("Incorrect base register returned");
+            }
+
+            // check number of registers written
+            if ((buffer[10] != (((ushort) values.Length) >> 8))
+             && (buffer[11] != (((ushort) values.Length) & 0x00FF)))
+            {
+                throw new Exception("Incorrect number of registers written returned");
+            }
         }
     }
 }

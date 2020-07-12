@@ -42,16 +42,24 @@ namespace PVMonitor
             // init Modbus TCP client
             ModbusTCPClient client = new ModbusTCPClient();
             client.Connect(FroniusInverterBaseAddress, FroniusInverterModbusTCPPort);
-            
-            // go to 50% with immediate effect without timeout
-            ushort InverterPowerOutputPercent = 50;
+
+            // initial check
+            byte[] WMaxLimit = client.ReadHoldingRegisters(
+                1, // inverter unit#
+                SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
+                SunSpecInverterModbusRegisterMapFloat.WMaxLimPctLength);
+
+            int existingLimitPercent = Utils.ByteSwap(BitConverter.ToUInt16(WMaxLimit)) / 100;
+
+            // go to 70% with immediate effect without timeout (70% is the artifical limit imposed by the external energy provider)
+            ushort InverterPowerOutputPercent = 70;
             client.WriteHoldingRegisters(
                 1, // inverter unit#
                 SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
                 new ushort[] { (ushort) (InverterPowerOutputPercent * 100), 0, 0, 0, 1});
 
-            // check
-            byte[] WMaxLimit = client.ReadHoldingRegisters(
+            // check new setting
+            WMaxLimit = client.ReadHoldingRegisters(
                 1, // inverter unit#
                 SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
                 SunSpecInverterModbusRegisterMapFloat.WMaxLimPctLength);

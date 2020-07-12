@@ -18,10 +18,12 @@ namespace PVMonitor
         private const string LinuxUSBSerialPort = "/dev/ttyUSB0";
         private const string FroniusInverterBaseAddress = "192.168.178.31";
         private const int FroniusInverterModbusTCPPort = 502;
+        private const float FroniusSymoMaxPower = 8200f;
 
         private const float KWhCost = 0.2850f;
         private const float KWhProfit = 0.1018f;
-        
+        private const float GridExportPowerLimit = 7000f;
+
         static async Task Main(string[] args)
         {
 #if DEBUG
@@ -51,8 +53,8 @@ namespace PVMonitor
 
             int existingLimitPercent = Utils.ByteSwap(BitConverter.ToUInt16(WMaxLimit)) / 100;
 
-            // go to 70% with immediate effect without timeout (70% is the artifical limit imposed by the external energy provider)
-            ushort InverterPowerOutputPercent = 70;
+            // go to the maximum grid export power limit with immediate effect without timeout
+            ushort InverterPowerOutputPercent = (ushort) ((GridExportPowerLimit / FroniusSymoMaxPower) * 100);
             client.WriteHoldingRegisters(
                 1, // inverter unit#
                 SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,

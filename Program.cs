@@ -20,6 +20,16 @@ namespace PVMonitor
         private const int FroniusInverterModbusTCPPort = 502;
         private const float FroniusSymoMaxPower = 8200f;
 
+        private const string WallbeWallboxBaseAddress = "192.168.178.21";
+        private const int WallbeWallboxModbusTCPPort = 502;
+        private const int WallbeWallboxModbusUnitID = 255;
+
+
+        private const int WallbeWallboxCurrentStatusAddress = 100;
+        private const int WallbeWallboxMaxPowerAddress = 101;
+        private const int WallbeWallboxCurrentPowerSettingAddress = 300;
+        private const int WallbeWallboxDesiredPowerSettingAddress = 528;
+
         private const float KWhCost = 0.2850f;
         private const float KWhProfit = 0.1018f;
         private const float GridExportPowerLimit = 7000f;
@@ -43,7 +53,27 @@ namespace PVMonitor
 #endif
             // init Modbus TCP client
             ModbusTCPClient client = new ModbusTCPClient();
-            client.Connect(FroniusInverterBaseAddress, FroniusInverterModbusTCPPort);
+//            client.Connect(FroniusInverterBaseAddress, FroniusInverterModbusTCPPort);
+            client.Connect(WallbeWallboxBaseAddress, WallbeWallboxModbusTCPPort);
+
+            // read current power (in Amps)
+            ushort WallbePowerSetting = Utils.ByteSwap(BitConverter.ToUInt16(client.ReadHoldingRegisters(
+                WallbeWallboxModbusUnitID,
+                WallbeWallboxCurrentPowerSettingAddress,
+                1)));
+
+            // increse desired power by 1 Amp
+            client.WriteHoldingRegisters(
+                WallbeWallboxModbusUnitID,
+                WallbeWallboxDesiredPowerSettingAddress,
+                new ushort[] { (ushort)(WallbePowerSetting + 1)});
+
+            // check new setting
+            WallbePowerSetting = Utils.ByteSwap(BitConverter.ToUInt16(client.ReadHoldingRegisters(
+                 WallbeWallboxModbusUnitID,
+                 WallbeWallboxCurrentPowerSettingAddress,
+                 1)));
+
 
             // initial check
             byte[] WMaxLimit = client.ReadHoldingRegisters(

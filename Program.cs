@@ -16,17 +16,18 @@ namespace PVMonitor
     class Program
     {
         private const string LinuxUSBSerialPort = "/dev/ttyUSB0";
+     
         private const string FroniusInverterBaseAddress = "192.168.178.31";
         private const int FroniusInverterModbusTCPPort = 502;
+        private const int FroniusInverterModbusUnitID = 1;
+
         private const float FroniusSymoMaxPower = 8200f;
 
         private const string WallbeWallboxBaseAddress = "192.168.178.21";
         private const int WallbeWallboxModbusTCPPort = 502;
         private const int WallbeWallboxModbusUnitID = 255;
 
-
         private const int WallbeWallboxCurrentStatusAddress = 100;
-        private const int WallbeWallboxMaxPowerAddress = 101;
         private const int WallbeWallboxCurrentPowerSettingAddress = 300;
         private const int WallbeWallboxDesiredPowerSettingAddress = 528;
 
@@ -75,9 +76,9 @@ namespace PVMonitor
                  1)));
 
 
-            // initial check
+            // read current inverter power limit (percentage)
             byte[] WMaxLimit = client.ReadHoldingRegisters(
-                1, // inverter unit#
+                FroniusInverterModbusUnitID,
                 SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
                 SunSpecInverterModbusRegisterMapFloat.WMaxLimPctLength);
 
@@ -86,13 +87,13 @@ namespace PVMonitor
             // go to the maximum grid export power limit with immediate effect without timeout
             ushort InverterPowerOutputPercent = (ushort) ((GridExportPowerLimit / FroniusSymoMaxPower) * 100);
             client.WriteHoldingRegisters(
-                1, // inverter unit#
+                FroniusInverterModbusUnitID,
                 SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
                 new ushort[] { (ushort) (InverterPowerOutputPercent * 100), 0, 0, 0, 1});
 
             // check new setting
             WMaxLimit = client.ReadHoldingRegisters(
-                1, // inverter unit#
+                FroniusInverterModbusUnitID,
                 SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
                 SunSpecInverterModbusRegisterMapFloat.WMaxLimPctLength);
 

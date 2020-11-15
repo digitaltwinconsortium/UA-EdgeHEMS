@@ -71,6 +71,19 @@ namespace PVMonitor
 
     class ModbusTCPClient
     {
+        public enum FunctionCode : byte
+        {
+            ReadCoilStatus = 1,
+            ReadInputStatus = 2,
+            ReadHoldingRegisters = 3,
+            ReadInputRegisters = 4,
+            ForceSingleCoil = 5,
+            PresetSingleRegister = 6,
+            ReadExceptionStatus = 7,
+            ForceMultipleCoils = 15,
+            PresetMultipleRegisters = 16
+        }
+
         private TcpClient tcpClient = null;
 
         // Modbus uses long timeouts (10 seconds minimum)
@@ -118,13 +131,13 @@ namespace PVMonitor
             tcpClient = null;
         }
 
-        public byte[] ReadHoldingRegisters(byte unitID, ushort registerBaseAddress, ushort count)
+        public byte[] ReadRegisters(byte unitID, FunctionCode function, ushort registerBaseAddress, ushort count)
         {
             ApplicationDataUnit aduRequest = new ApplicationDataUnit();
             aduRequest.TransactionID = transactionID++;
             aduRequest.Length = 6;
             aduRequest.UnitID = unitID;
-            aduRequest.FunctionCode = 3;
+            aduRequest.FunctionCode = (byte) function;
 
             aduRequest.Payload[0] = (byte) (registerBaseAddress >> 8);
             aduRequest.Payload[1] = (byte) (registerBaseAddress & 0x00FF);
@@ -191,7 +204,7 @@ namespace PVMonitor
             aduRequest.TransactionID = transactionID++;
             aduRequest.Length = (ushort) (7 + (values.Length * 2));
             aduRequest.UnitID = unitID;
-            aduRequest.FunctionCode = 16;
+            aduRequest.FunctionCode = (byte)FunctionCode.PresetMultipleRegisters;
 
             aduRequest.Payload[0] = (byte) (registerBaseAddress >> 8);
             aduRequest.Payload[1] = (byte) (registerBaseAddress & 0x00FF);

@@ -31,6 +31,7 @@ namespace PVMonitor
         private const int WallbeWallboxMaxCurrentSettingAddress = 101;
         private const int WallbeWallboxCurrentCurrentSettingAddress = 300;
         private const int WallbeWallboxDesiredCurrentSettingAddress = 528;
+        private const int WallbeWallboxAvailableSettingAddress = 402;
 
         private const float KWhCost = 0.2850f;
         private const float KWhProfit = 0.1018f;
@@ -68,27 +69,30 @@ namespace PVMonitor
             bool chargingInProgress = IsEVChargingInProgress(EVStatus);
 
             // read maximum current rating
-            ushort maxPower = Utils.ByteSwap(BitConverter.ToUInt16(client.ReadRegisters(
+            ushort maxCurrent = Utils.ByteSwap(BitConverter.ToUInt16(client.ReadRegisters(
                 WallbeWallboxModbusUnitID,
                 ModbusTCPClient.FunctionCode.ReadInputRegisters,
                 WallbeWallboxMaxCurrentSettingAddress,
                 1)));
 
+            // set wallbox to available
+            client.WriteCoil(WallbeWallboxModbusUnitID, WallbeWallboxAvailableSettingAddress, true);
+
             // read current current (in Amps)
-            ushort WallbePowerSetting = Utils.ByteSwap(BitConverter.ToUInt16(client.ReadRegisters(
+            ushort WallbeCurrentSetting = Utils.ByteSwap(BitConverter.ToUInt16(client.ReadRegisters(
                 WallbeWallboxModbusUnitID,
                 ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
-                WallbeWallboxCurrentPowerSettingAddress,
+                WallbeWallboxCurrentCurrentSettingAddress,
                 1)));
 
             // increse desired current by 1 Amp
             client.WriteHoldingRegisters(
                 WallbeWallboxModbusUnitID,
                 WallbeWallboxDesiredCurrentSettingAddress,
-                new ushort[] { (ushort)(WallbePowerSetting + 1)});
+                new ushort[] { (ushort)(WallbeCurrentSetting + 1)});
 
             // check new current setting
-            WallbePowerSetting = Utils.ByteSwap(BitConverter.ToUInt16(client.ReadRegisters(
+            WallbeCurrentSetting = Utils.ByteSwap(BitConverter.ToUInt16(client.ReadRegisters(
                  WallbeWallboxModbusUnitID,
                  ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
                  WallbeWallboxCurrentCurrentSettingAddress,

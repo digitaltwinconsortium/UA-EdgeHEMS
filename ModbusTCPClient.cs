@@ -264,5 +264,64 @@ namespace PVMonitor
                 throw new Exception("Incorrect number of registers written returned");
             }
         }
+
+        public void WriteCoil(byte unitID, ushort coilAddress, bool set)
+        {
+            ApplicationDataUnit aduRequest = new ApplicationDataUnit();
+            aduRequest.TransactionID = transactionID++;
+            aduRequest.Length = 6;
+            aduRequest.UnitID = unitID;
+            aduRequest.FunctionCode = (byte)FunctionCode.ForceSingleCoil;
+
+            aduRequest.Payload[0] = (byte)(coilAddress >> 8);
+            aduRequest.Payload[1] = (byte)(coilAddress & 0x00FF);
+            aduRequest.Payload[2] = (byte)(set ? 0xFF : 0x0);
+            aduRequest.Payload[3] = 0x0;
+
+            byte[] buffer = new byte[ApplicationDataUnit.maxADU];
+            aduRequest.CopyADUToNetworkBuffer(buffer);
+
+            // send request to Modbus server
+            tcpClient.GetStream().Write(buffer, 0, ApplicationDataUnit.headerLength + 4);
+
+            // read response
+            int numBytesRead = tcpClient.GetStream().Read(buffer, 0, ApplicationDataUnit.headerLength + 4);
+            if (numBytesRead != ApplicationDataUnit.headerLength + 4)
+            {
+                throw new EndOfStreamException();
+            }
+
+            ApplicationDataUnit aduResponse = new ApplicationDataUnit();
+            aduResponse.CopyHeaderFromNetworkBuffer(buffer);
+
+            // check for error
+            if ((aduResponse.FunctionCode & errorFlag) > 0)
+            {
+                // read error
+                int errorCode = tcpClient.GetStream().ReadByte();
+                if (errorCode == -1)
+                {
+                    throw new EndOfStreamException();
+                }
+                else
+                {
+                    HandlerError((byte)errorCode);
+                }
+            }
+
+            // check address written
+            if ((buffer[8] != (coilAddress >> 8))
+             && (buffer[9] != (coilAddress & 0x00FF)))
+            {
+                throw new Exception("Incorrect coil register returned");
+            }
+
+            // check flag written
+            if ((buffer[10] != (set ? 0xFF : 0x0))
+             && (buffer[11] != 0x0))
+            {
+                throw new Exception("Incorrect coil flag returned");
+            }
+        }
     }
 }

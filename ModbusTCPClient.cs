@@ -133,6 +133,12 @@ namespace PVMonitor
 
         public byte[] ReadRegisters(byte unitID, FunctionCode function, ushort registerBaseAddress, ushort count)
         {
+            // check funtion code
+            if ((function != FunctionCode.ReadInputRegisters) && (function != FunctionCode.ReadHoldingRegisters))
+            {
+                throw new ArgumentException("Only Input registers or holding registers can be read");
+            }
+
             ApplicationDataUnit aduRequest = new ApplicationDataUnit();
             aduRequest.TransactionID = transactionID++;
             aduRequest.Length = 6;

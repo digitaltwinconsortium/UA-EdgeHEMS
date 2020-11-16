@@ -31,8 +31,9 @@ namespace PVMonitor
         private const int WallbeWallboxMaxCurrentSettingAddress = 101;
         private const int WallbeWallboxCurrentCurrentSettingAddress = 300;
         private const int WallbeWallboxDesiredCurrentSettingAddress = 528;
-        private const int WallbeWallboxAvailableSettingAddress = 402;
-
+        private const int WallbeWallboxChargingApprovedFlagAddress = 400;
+        private const int WallbeWallboxAvailableFlagAddress = 402;
+        
         private const float KWhCost = 0.2850f;
         private const float KWhProfit = 0.1018f;
         private const float GridExportPowerLimit = 7000f;
@@ -76,7 +77,7 @@ namespace PVMonitor
                 1)));
 
             // set wallbox to available
-            client.WriteCoil(WallbeWallboxModbusUnitID, WallbeWallboxAvailableSettingAddress, true);
+            client.WriteCoil(WallbeWallboxModbusUnitID, WallbeWallboxAvailableFlagAddress, true);
 
             // read current current (in Amps)
             ushort WallbeCurrentSetting = Utils.ByteSwap(BitConverter.ToUInt16(client.ReadRegisters(
@@ -97,6 +98,7 @@ namespace PVMonitor
                  ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
                  WallbeWallboxCurrentCurrentSettingAddress,
                  1)));
+
 
 
             // read current inverter power limit (percentage)

@@ -31,8 +31,7 @@ namespace PVMonitor
         private const int WallbeWallboxMaxCurrentSettingAddress = 101;
         private const int WallbeWallboxCurrentCurrentSettingAddress = 300;
         private const int WallbeWallboxDesiredCurrentSettingAddress = 528;
-        private const int WallbeWallboxChargingApprovedFlagAddress = 400;
-        private const int WallbeWallboxAvailableFlagAddress = 402;
+        private const int WallbeWallboxEnableChargingFlagAddress = 400;
         
         private const float KWhCost = 0.2850f;
         private const float KWhProfit = 0.1018f;
@@ -55,54 +54,16 @@ namespace PVMonitor
                 System.Threading.Thread.Sleep(1000);
             }
 #endif
-            // init Modbus TCP client
-            ModbusTCPClient client = new ModbusTCPClient();
-//            client.Connect(FroniusInverterBaseAddress, FroniusInverterModbusTCPPort);
-            client.Connect(WallbeWallboxBaseAddress, WallbeWallboxModbusTCPPort);
+            // init Modbus TCP client for wallbox
+            ModbusTCPClient wallbox = new ModbusTCPClient();
+            wallbox.Connect(WallbeWallboxBaseAddress, WallbeWallboxModbusTCPPort);
 
-            // read EV status
-            char EVStatus = (char) Utils.ByteSwap(BitConverter.ToUInt16(client.ReadRegisters(
-                WallbeWallboxModbusUnitID,
-                ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                WallbeWallboxEVStatusAddress,
-                1)));
-
-            bool chargingInProgress = IsEVChargingInProgress(EVStatus);
-
-            // read maximum current rating
-            ushort maxCurrent = Utils.ByteSwap(BitConverter.ToUInt16(client.ReadRegisters(
-                WallbeWallboxModbusUnitID,
-                ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                WallbeWallboxMaxCurrentSettingAddress,
-                1)));
-
-            // set wallbox to available
-            client.WriteCoil(WallbeWallboxModbusUnitID, WallbeWallboxAvailableFlagAddress, true);
-
-            // read current current (in Amps)
-            ushort WallbeCurrentSetting = Utils.ByteSwap(BitConverter.ToUInt16(client.ReadRegisters(
-                WallbeWallboxModbusUnitID,
-                ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
-                WallbeWallboxCurrentCurrentSettingAddress,
-                1)));
-
-            // increse desired current by 1 Amp
-            client.WriteHoldingRegisters(
-                WallbeWallboxModbusUnitID,
-                WallbeWallboxDesiredCurrentSettingAddress,
-                new ushort[] { (ushort)(WallbeCurrentSetting + 1)});
-
-            // check new current setting
-            WallbeCurrentSetting = Utils.ByteSwap(BitConverter.ToUInt16(client.ReadRegisters(
-                 WallbeWallboxModbusUnitID,
-                 ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
-                 WallbeWallboxCurrentCurrentSettingAddress,
-                 1)));
-
-
+            // init Modbus TCP client for inverter
+            ModbusTCPClient inverter = new ModbusTCPClient();
+            inverter.Connect(FroniusInverterBaseAddress, FroniusInverterModbusTCPPort);
 
             // read current inverter power limit (percentage)
-            byte[] WMaxLimit = client.ReadRegisters(
+            byte[] WMaxLimit = inverter.ReadRegisters(
                 FroniusInverterModbusUnitID,
                 ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
                 SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
@@ -112,13 +73,13 @@ namespace PVMonitor
 
             // go to the maximum grid export power limit with immediate effect without timeout
             ushort InverterPowerOutputPercent = (ushort) ((GridExportPowerLimit / FroniusSymoMaxPower) * 100);
-            client.WriteHoldingRegisters(
+            inverter.WriteHoldingRegisters(
                 FroniusInverterModbusUnitID,
                 SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
                 new ushort[] { (ushort) (InverterPowerOutputPercent * 100), 0, 0, 0, 1});
 
             // check new setting
-            WMaxLimit = client.ReadRegisters(
+            WMaxLimit = inverter.ReadRegisters(
                 FroniusInverterModbusUnitID,
                 ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
                 SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
@@ -160,6 +121,7 @@ namespace PVMonitor
                 Debug.WriteLine(ex.Message);
             }
 
+            bool EVUpdate = false;
             while (true)
             {
                 TelemetryData telemetryData = new TelemetryData();
@@ -240,14 +202,30 @@ namespace PVMonitor
                             telemetryData.MeterEnergyConsumed = telemetryData.PVOutputEnergyTotal + sml.Meter.EnergyPurchased - sml.Meter.EnergySold;
                             telemetryData.CurrentPowerConsumed = telemetryData.PVOutputPower + sml.Meter.CurrentPower;
                         }
-                    }
 
+                        // ramp up or down EV charging, based on surplus, every second pass through the loop
+                        EVUpdate = !EVUpdate;
+                        if (EVUpdate)
+                        {
+                            if (IsEVChargingInProgress(wallbox))
+                            {
+                                OptimizeEVCharging(wallbox, sml.Meter.CurrentPower);
+                            }
+                            else
+                            {
+                                // check if we should start charging our EV with the surplus power, but we need at least 6 A of current
+                                if (((sml.Meter.CurrentPower / 230) < -6.0f) && IsEVConnected(wallbox))
+                                {
+                                    StartEVCharging(wallbox);
+                                }
+                            }
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
                     Debug.WriteLine(ex.Message);
                 }
-
 
                 try
                 {
@@ -266,8 +244,83 @@ namespace PVMonitor
             }
         }
 
-        private static bool IsEVChargingInProgress(char EVStatus)
+        private static void StopEVCharging(ModbusTCPClient wallbox)
         {
+            wallbox.WriteCoil(WallbeWallboxModbusUnitID, WallbeWallboxEnableChargingFlagAddress, false);
+        }
+
+        private static void StartEVCharging(ModbusTCPClient wallbox)
+        {
+            if (IsEVConnected(wallbox))
+            {
+                // start charging
+                wallbox.WriteCoil(WallbeWallboxModbusUnitID, WallbeWallboxEnableChargingFlagAddress, true);
+            }
+        }
+
+        private static bool IsEVConnected(ModbusTCPClient wallbox)
+        {
+            // read EV status
+            char EVStatus = (char)Utils.ByteSwap(BitConverter.ToUInt16(wallbox.ReadRegisters(
+                WallbeWallboxModbusUnitID,
+                ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                WallbeWallboxEVStatusAddress,
+                1)));
+
+            switch (EVStatus)
+            {
+                case 'A': return false; // no vehicle connected
+                case 'B': return true; // vehicle connected, not charging
+                case 'C': return true;  // vehicle connected, charging, no ventilation required
+                case 'D': return true;  // vehicle connected, charging, ventilation required
+                case 'E': return false; // wallbox has no power
+                case 'F': return false; // wallbox not available
+                default: return false;
+            }
+        }
+
+        private static void OptimizeEVCharging(ModbusTCPClient wallbox, double currentPower)
+        {
+            //TODO
+            // read maximum current rating
+            ushort maxCurrent = Utils.ByteSwap(BitConverter.ToUInt16(wallbox.ReadRegisters(
+                WallbeWallboxModbusUnitID,
+                ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                WallbeWallboxMaxCurrentSettingAddress,
+                1)));
+
+            // read current current (in Amps)
+            ushort WallbeCurrentSetting = Utils.ByteSwap(BitConverter.ToUInt16(wallbox.ReadRegisters(
+                WallbeWallboxModbusUnitID,
+                ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
+                WallbeWallboxCurrentCurrentSettingAddress,
+                1)));
+
+            // increse desired current by 1 Amp
+            wallbox.WriteHoldingRegisters(
+                WallbeWallboxModbusUnitID,
+                WallbeWallboxDesiredCurrentSettingAddress,
+                new ushort[] { (ushort)(WallbeCurrentSetting + 1) });
+
+            // check new current setting
+            WallbeCurrentSetting = Utils.ByteSwap(BitConverter.ToUInt16(wallbox.ReadRegisters(
+                 WallbeWallboxModbusUnitID,
+                 ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
+                 WallbeWallboxCurrentCurrentSettingAddress,
+                 1)));
+
+            StopEVCharging(wallbox);
+        }
+
+        private static bool IsEVChargingInProgress(ModbusTCPClient wallbox)
+        {
+            // read EV status
+            char EVStatus = (char)Utils.ByteSwap(BitConverter.ToUInt16(wallbox.ReadRegisters(
+                WallbeWallboxModbusUnitID,
+                ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                WallbeWallboxEVStatusAddress,
+                1)));
+
             switch (EVStatus)
             {
                 case 'A': return false; // no vehicle connected

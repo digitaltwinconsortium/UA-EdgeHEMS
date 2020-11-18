@@ -26,7 +26,8 @@ namespace PVMonitor
         private const string WallbeWallboxBaseAddress = "192.168.178.21";
         private const int WallbeWallboxModbusTCPPort = 502;
         private const int WallbeWallboxModbusUnitID = 255;
-
+        
+        private const int WallbeWallboxMinChargingCurrent = 6; // EVs don't charge with less than 6 Amps
         private const int WallbeWallboxEVStatusAddress = 100;
         private const int WallbeWallboxMaxCurrentSettingAddress = 101;
         private const int WallbeWallboxCurrentCurrentSettingAddress = 300;
@@ -281,7 +282,11 @@ namespace PVMonitor
 
         private static void OptimizeEVCharging(ModbusTCPClient wallbox, double currentPower)
         {
-            //TODO
+            // we ramp up and down our charging current in 1 Amp increments/decrements
+            // we increase our charging current until a) we have reached the maximum the wallbox can handle or
+            // b) we are just below consuming power from the grid (indicated by currentPower becoming positive), we are setting this to -200 Watts
+            // we decrease our charging current when currentPower is above 0 (again indicated we are comsuming pwoer from the grid)
+
             // read maximum current rating
             ushort maxCurrent = Utils.ByteSwap(BitConverter.ToUInt16(wallbox.ReadRegisters(
                 WallbeWallboxModbusUnitID,
@@ -290,26 +295,38 @@ namespace PVMonitor
                 1)));
 
             // read current current (in Amps)
-            ushort WallbeCurrentSetting = Utils.ByteSwap(BitConverter.ToUInt16(wallbox.ReadRegisters(
+            ushort wallbeWallboxCurrentCurrentSetting = Utils.ByteSwap(BitConverter.ToUInt16(wallbox.ReadRegisters(
                 WallbeWallboxModbusUnitID,
                 ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
                 WallbeWallboxCurrentCurrentSettingAddress,
                 1)));
 
-            // increse desired current by 1 Amp
-            wallbox.WriteHoldingRegisters(
-                WallbeWallboxModbusUnitID,
-                WallbeWallboxDesiredCurrentSettingAddress,
-                new ushort[] { (ushort)(WallbeCurrentSetting + 1) });
-
-            // check new current setting
-            WallbeCurrentSetting = Utils.ByteSwap(BitConverter.ToUInt16(wallbox.ReadRegisters(
-                 WallbeWallboxModbusUnitID,
-                 ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
-                 WallbeWallboxCurrentCurrentSettingAddress,
-                 1)));
-
-            StopEVCharging(wallbox);
+            // check if we have reached our limits
+            if ((wallbeWallboxCurrentCurrentSetting < maxCurrent) && (currentPower < -200))
+            {
+                // increse desired current by 1 Amp
+                wallbox.WriteHoldingRegisters(
+                    WallbeWallboxModbusUnitID,
+                    WallbeWallboxDesiredCurrentSettingAddress,
+                    new ushort[] { (ushort)(wallbeWallboxCurrentCurrentSetting + 1) });
+            }
+            else if (currentPower > 0)
+            {
+                // need to decrease our charging current
+                if (wallbeWallboxCurrentCurrentSetting == WallbeWallboxMinChargingCurrent)
+                {
+                    // we are already at the minimum, stop instead
+                    StopEVCharging(wallbox);
+                }
+                else
+                {
+                    // decrease desired current by 1 Amp
+                    wallbox.WriteHoldingRegisters(
+                        WallbeWallboxModbusUnitID,
+                        WallbeWallboxDesiredCurrentSettingAddress,
+                        new ushort[] { (ushort)(wallbeWallboxCurrentCurrentSetting - 1) });
+                }
+            }
         }
 
         private static bool IsEVChargingInProgress(ModbusTCPClient wallbox)

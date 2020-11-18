@@ -81,21 +81,24 @@ namespace PVMonitor
             // look for the escape sequence
             while (true)
             {
-                // find first part of escape marker
-                while (_reader.ReadByte() != SMLConstants.EscapeMarker);
-                
-                // the next 3 bytes must also be the escape marker, but we need to read them a byte at a time
-                if (_reader.ReadByte() == SMLConstants.EscapeMarker)
+                if (_reader != null)
                 {
+                    // find first part of escape marker
+                    while (_reader.ReadByte() != SMLConstants.EscapeMarker) ;
+
+                    // the next 3 bytes must also be the escape marker, but we need to read them a byte at a time
                     if (_reader.ReadByte() == SMLConstants.EscapeMarker)
                     {
                         if (_reader.ReadByte() == SMLConstants.EscapeMarker)
                         {
-                            // we found it! Next, read the file begin sequence
-                            if (_reader.ReadUInt32() == SMLConstants.FileBeginMarker)
+                            if (_reader.ReadByte() == SMLConstants.EscapeMarker)
                             {
-                                // we are really at the begining of a message (and not at the end!)
-                                break;
+                                // we found it! Next, read the file begin sequence
+                                if (_reader.ReadUInt32() == SMLConstants.FileBeginMarker)
+                                {
+                                    // we are really at the begining of a message (and not at the end!)
+                                    break;
+                                }
                             }
                         }
                     }

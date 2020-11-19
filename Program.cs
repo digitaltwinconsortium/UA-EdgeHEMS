@@ -204,6 +204,23 @@ namespace PVMonitor
                             telemetryData.CurrentPowerConsumed = telemetryData.PVOutputPower + sml.Meter.CurrentPower;
                         }
 
+                        if (IsEVChargingInProgress(wallbox))
+                        {
+                            telemetryData.EVChargingInProgress = 1;
+                        }
+                        else
+                        {
+                            telemetryData.EVChargingInProgress = 0;
+                        }
+
+                        // read current current (in Amps)
+                        ushort wallbeWallboxCurrentCurrentSetting = Utils.ByteSwap(BitConverter.ToUInt16(wallbox.ReadRegisters(
+                            WallbeWallboxModbusUnitID,
+                            ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
+                            WallbeWallboxCurrentCurrentSettingAddress,
+                            1)));
+                        telemetryData.WallboxCurrent = wallbeWallboxCurrentCurrentSetting;
+
                         // ramp up or down EV charging, based on surplus, every second pass through the loop
                         EVUpdate = !EVUpdate;
                         if (EVUpdate)
@@ -302,7 +319,7 @@ namespace PVMonitor
                 1)));
 
             // check if we have reached our limits
-            if ((wallbeWallboxCurrentCurrentSetting < maxCurrent) && (currentPower < -200))
+            if ((wallbeWallboxCurrentCurrentSetting < maxCurrent) && (currentPower < -500))
             {
                 // increse desired current by 1 Amp
                 wallbox.WriteHoldingRegisters(

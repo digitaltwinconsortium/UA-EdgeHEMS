@@ -20,6 +20,8 @@ namespace PVMonitor
             EnergyProfit = 0.0;
             CurrentPower = 0.0;
             CurrentPowerConsumed = 0.0;
+            EVChargingInProgress = 0;
+            WallboxCurrent = 0;
         }
 
         public double Temperature { get; set; }
@@ -49,5 +51,9 @@ namespace PVMonitor
         public double CurrentPower { get; set; }
 
         public double CurrentPowerConsumed { get; set; }
+
+        public int EVChargingInProgress { get; set; }
+
+        public int WallboxCurrent { get; set; }
     }
 }

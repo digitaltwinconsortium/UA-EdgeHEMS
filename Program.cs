@@ -150,10 +150,33 @@ namespace PVMonitor
 
                 try
                 {
+                    // read the current forecast data from web service
+                    using WebClient webClient = new WebClient
+                    {
+                        BaseAddress = "https://api.openweathermap.org/"
+                    };
+                    var json = webClient.DownloadString("data/2.5/forecast?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b");
+                    Forecast forecast = JsonConvert.DeserializeObject<Forecast>(json);
+                    if (forecast != null && forecast.list != null && forecast.list.Count == 40)
+                    {
+                        telemetryData.CloudinessForecast = "Cloudiness on " + forecast.list[0].dt_txt + ": " + forecast.list[0].clouds.all + "%\r\n";
+                        for (int i = 1; i < 40; i++)
+                        {
+                            telemetryData.CloudinessForecast += "Cloudiness on " + forecast.list[i].dt_txt + ": " + forecast.list[i].clouds.all + "%\r\n";
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine(ex.Message);
+                }
+
+                try
+                {
                     // read the current converter data from web service
                     using WebClient webClient = new WebClient
                     {
-                        BaseAddress = FroniusInverterBaseAddress
+                        BaseAddress = "http://" + FroniusInverterBaseAddress
                     };
                     var json = webClient.DownloadString("solar_api/v1/GetInverterRealtimeData.cgi?Scope=Device&DeviceID=1&DataCollection=CommonInverterData");
                     DCACConverter converter = JsonConvert.DeserializeObject<DCACConverter>(json);

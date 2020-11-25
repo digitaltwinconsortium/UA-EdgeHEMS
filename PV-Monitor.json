@@ -1,6 +1,20 @@
 {
-  "@id": "urn:pvMonitor:PVMonitor_8y:6",
+  "@id": "urn:pvMonitor:PVMonitor_8y:9",
   "@type": "CapabilityModel",
+  "contents": [
+    {
+      "@id": "urn:pvMonitor:PVMonitor_8y:CloudinessForecast:8",
+      "@type": "Telemetry",
+      "displayName": {
+        "en": "Cloudiness Forecast"
+      },
+      "name": "CloudinessForecast",
+      "schema": "string"
+    }
+  ],
+  "displayName": {
+    "en": "PV-Monitor"
+  },
   "implements": [
     {
       "@id": "urn:pvMonitor:PVMonitor_8y:cpmjkptyj:1",
@@ -12,9 +26,6 @@
       "schema": {
         "@id": "urn:pvMonitor:PVMonitor_5nf:6",
         "@type": "Interface",
-        "displayName": {
-          "en": "Interface"
-        },
         "contents": [
           {
             "@id": "urn:pvMonitor:PVMonitor_5nf:Temperature:1",
@@ -27,7 +38,7 @@
             },
             "name": "Temperature",
             "schema": "double",
-            "unit": "Units/Temperature/celsius"
+            "unit": "celsius"
           },
           {
             "@id": "urn:pvMonitor:PVMonitor_5nf:CloudCover:1",
@@ -117,10 +128,10 @@
               "en": "Energy Cost (Euro)"
             },
             "name": "EnergyCost",
+            "schema": "double",
             "displayUnit": {
               "en": "Euro"
-            },
-            "schema": "double"
+            }
           },
           {
             "@id": "urn:pvMonitor:PVMonitor_5nf:EnergyProfit:2",
@@ -129,10 +140,10 @@
               "en": "Energy Profit (Euro)"
             },
             "name": "EnergyProfit",
+            "schema": "double",
             "displayUnit": {
               "en": "Euro"
-            },
-            "schema": "double"
+            }
           },
           {
             "@id": "urn:pvMonitor:PVMonitor_5nf:CurrentPower:3",
@@ -141,10 +152,10 @@
               "en": "Current Power Meter (Watts)"
             },
             "name": "CurrentPower",
+            "schema": "double",
             "displayUnit": {
               "en": "Watt"
-            },
-            "schema": "double"
+            }
           },
           {
             "@id": "urn:pvMonitor:PVMonitor_5nf:CurrentPowerConsumedWatts:4",
@@ -164,13 +175,70 @@
             "name": "CurrentPowerConsumed",
             "schema": "double"
           }
-        ]
+        ],
+        "displayName": {
+          "en": "Interface"
+        }
+      }
+    },
+    {
+      "@id": "urn:pvMonitor:PVMonitor_8y:PVMonitorV7pm:7",
+      "@type": "InterfaceInstance",
+      "displayName": {
+        "en": "Interface"
+      },
+      "name": "PVMonitorV7pm",
+      "schema": {
+        "@id": "urn:pvMonitor:PVMonitorV7pm:2",
+        "@type": "Interface",
+        "contents": [
+          {
+            "@id": "urn:pvMonitor:PVMonitorV7pm:EVChargingInProgress:1",
+            "@type": "Telemetry",
+            "displayName": {
+              "en": "EV Charging In Progress"
+            },
+            "name": "EVChargingInProgress",
+            "schema": "integer"
+          },
+          {
+            "@id": "urn:pvMonitor:PVMonitorV7pm:WallboxCurrent:1",
+            "@type": "Telemetry",
+            "displayName": {
+              "en": "Wallbox Current"
+            },
+            "name": "WallboxCurrent",
+            "schema": "integer",
+            "displayUnit": {
+              "en": "Amps"
+            }
+          },
+          {
+            "@id": "urn:pvMonitor:PVMonitorV7pm:ChargeNow:2",
+            "@type": "Telemetry",
+            "displayName": {
+              "en": "Charge Now"
+            },
+            "name": "ChargeNow",
+            "schema": "boolean"
+          },
+          {
+            "@id": "urn:pvMonitor:PVMonitorV7pm:ChargeNowToggle:2",
+            "@type": "Command",
+            "commandType": "synchronous",
+            "displayName": {
+              "en": "ChargeNowToggle"
+            },
+            "name": "ChargeNowToggle",
+            "durable": false
+          }
+        ],
+        "displayName": {
+          "en": "Interface"
+        }
       }
     }
   ],
-  "displayName": {
-    "en": "PV-Monitor"
-  },
   "@context": [
     "http://azureiot.com/v1/contexts/IoTModel.json"
   ]

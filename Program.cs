@@ -38,6 +38,8 @@ namespace PVMonitor
         private const float KWhProfit = 0.1018f;
         private const float GridExportPowerLimit = 7000f;
 
+        private static bool _chargeNow = false;
+
         static async Task Main(string[] args)
         {
 #if DEBUG
@@ -116,6 +118,9 @@ namespace PVMonitor
 
                 var connectionString = "HostName=" + result.AssignedHub + ";DeviceId=" + result.DeviceId + ";SharedAccessKey=" + primaryKey;
                 deviceClient = DeviceClient.CreateFromConnectionString(connectionString, TransportType.Mqtt);
+
+                // register our method
+                await deviceClient.SetMethodHandlerAsync("ChargeNowToggle", ChargeNowHandler, null);
             }
             catch (Exception ex)
             {
@@ -236,6 +241,8 @@ namespace PVMonitor
                             telemetryData.EVChargingInProgress = 0;
                         }
 
+                        telemetryData.ChargeNow = _chargeNow;
+
                         // read current current (in Amps)
                         ushort wallbeWallboxCurrentCurrentSetting = Utils.ByteSwap(BitConverter.ToUInt16(wallbox.ReadRegisters(
                             WallbeWallboxModbusUnitID,
@@ -255,7 +262,8 @@ namespace PVMonitor
                             else
                             {
                                 // check if we should start charging our EV with the surplus power, but we need at least 6 A of current
-                                if (((sml.Meter.CurrentPower / 230) < -6.0f) && IsEVConnected(wallbox))
+                                // or the user set the "charge now" flag via direct method
+                                if ((((sml.Meter.CurrentPower / 230) < -6.0f) || _chargeNow) && IsEVConnected(wallbox))
                                 {
                                     StartEVCharging(wallbox);
                                 }
@@ -283,6 +291,14 @@ namespace PVMonitor
 
                 await Task.Delay(5000);
             }
+        }
+
+        private static Task<MethodResponse> ChargeNowHandler(MethodRequest methodRequest, object userContext)
+        {
+            // toggle charge now
+            _chargeNow = !_chargeNow;
+                        
+            return Task.FromResult(new MethodResponse((int)HttpStatusCode.OK));
         }
 
         private static void StopEVCharging(ModbusTCPClient wallbox)
@@ -342,7 +358,8 @@ namespace PVMonitor
                 1)));
 
             // check if we have reached our limits
-            if ((wallbeWallboxCurrentCurrentSetting < maxCurrent) && (currentPower < -500))
+            // "charge now" overwrites this and charges as quickly as possible
+            if ((wallbeWallboxCurrentCurrentSetting < maxCurrent) && ((currentPower < -500) || _chargeNow))
             {
                 // increse desired current by 1 Amp
                 wallbox.WriteHoldingRegisters(
@@ -353,18 +370,22 @@ namespace PVMonitor
             else if (currentPower > 0)
             {
                 // need to decrease our charging current
-                if (wallbeWallboxCurrentCurrentSetting == WallbeWallboxMinChargingCurrent)
+                // "charge now" overwrites this and charges as quickly as possible
+                if (!_chargeNow)
                 {
-                    // we are already at the minimum, stop instead
-                    StopEVCharging(wallbox);
-                }
-                else
-                {
-                    // decrease desired current by 1 Amp
-                    wallbox.WriteHoldingRegisters(
-                        WallbeWallboxModbusUnitID,
-                        WallbeWallboxDesiredCurrentSettingAddress,
-                        new ushort[] { (ushort)(wallbeWallboxCurrentCurrentSetting - 1) });
+                    if (wallbeWallboxCurrentCurrentSetting == WallbeWallboxMinChargingCurrent)
+                    {
+                        // we are already at the minimum, stop instead
+                        StopEVCharging(wallbox);
+                    }
+                    else
+                    {
+                        // decrease desired current by 1 Amp
+                        wallbox.WriteHoldingRegisters(
+                            WallbeWallboxModbusUnitID,
+                            WallbeWallboxDesiredCurrentSettingAddress,
+                            new ushort[] { (ushort)(wallbeWallboxCurrentCurrentSetting - 1) });
+                    }
                 }
             }
         }

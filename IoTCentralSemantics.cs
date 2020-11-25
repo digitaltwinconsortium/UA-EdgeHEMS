@@ -23,6 +23,7 @@ namespace PVMonitor
             EVChargingInProgress = 0;
             WallboxCurrent = 0;
             CloudinessForecast = "not available";
+            ChargeNow = false;
         }
 
         public double Temperature { get; set; }
@@ -58,5 +59,7 @@ namespace PVMonitor
         public int WallboxCurrent { get; set; }
 
         public string CloudinessForecast { get; set; }
+
+        public bool ChargeNow { get; set; }
     }
 }

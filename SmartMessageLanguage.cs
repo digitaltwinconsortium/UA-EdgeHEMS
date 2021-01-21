@@ -574,15 +574,15 @@ namespace PVMonitor
                     }
                     if (length == 4)
                     {
-                        int64 = Utils.ByteSwap((uint) _reader.ReadInt32());
+                        int64 = (int)Utils.ByteSwap((uint) _reader.ReadInt32());
                     }
                     if (length == 2)
                     {
-                        int64 = Utils.ByteSwap((ushort) _reader.ReadInt16());
+                        int64 = (short)Utils.ByteSwap((ushort) _reader.ReadInt16());
                     }
                     if (length == 1)
                     {
-                        int64 = _reader.ReadByte();
+                        int64 = (sbyte)_reader.ReadByte();
                     }
 
                     if (OBISID == SMLConstants.PositiveActiveEnergyTotal)

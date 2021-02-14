@@ -16,7 +16,7 @@ namespace PVMonitor
     class Program
     {
         private const string LinuxUSBSerialPort = "/dev/ttyUSB0";
-     
+
         private const string FroniusInverterBaseAddress = "192.168.178.31";
         private const int FroniusInverterModbusTCPPort = 502;
         private const int FroniusInverterModbusUnitID = 1;
@@ -26,14 +26,14 @@ namespace PVMonitor
         private const string WallbeWallboxBaseAddress = "192.168.178.21";
         private const int WallbeWallboxModbusTCPPort = 502;
         private const int WallbeWallboxModbusUnitID = 255;
-        
+
         private const int WallbeWallboxMinChargingCurrent = 6; // EVs don't charge with less than 6 Amps
         private const int WallbeWallboxEVStatusAddress = 100;
         private const int WallbeWallboxMaxCurrentSettingAddress = 101;
         private const int WallbeWallboxCurrentCurrentSettingAddress = 300;
         private const int WallbeWallboxDesiredCurrentSettingAddress = 528;
         private const int WallbeWallboxEnableChargingFlagAddress = 400;
-        
+
         private const float KWhCost = 0.2850f;
         private const float KWhProfit = 0.1018f;
         private const float GridExportPowerLimit = 7000f;
@@ -48,7 +48,7 @@ namespace PVMonitor
             {
 
                 Console.WriteLine("Waiting for remote debugger to attach...");
-                
+
                 if (Debugger.IsAttached)
                 {
                     break;
@@ -66,7 +66,7 @@ namespace PVMonitor
             inverter.Connect(FroniusInverterBaseAddress, FroniusInverterModbusTCPPort);
 
             // read current inverter power limit (percentage)
-            byte[] WMaxLimit = inverter.ReadRegisters(
+            byte[] WMaxLimit = inverter.Read(
                 FroniusInverterModbusUnitID,
                 ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
                 SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
@@ -82,7 +82,7 @@ namespace PVMonitor
                 new ushort[] { (ushort) (InverterPowerOutputPercent * 100), 0, 0, 0, 1});
 
             // check new setting
-            WMaxLimit = inverter.ReadRegisters(
+            WMaxLimit = inverter.Read(
                 FroniusInverterModbusUnitID,
                 ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
                 SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
@@ -232,19 +232,13 @@ namespace PVMonitor
                             telemetryData.CurrentPowerConsumed = telemetryData.PVOutputPower + sml.Meter.CurrentPower;
                         }
 
-                        if (IsEVChargingInProgress(wallbox))
-                        {
-                            telemetryData.EVChargingInProgress = 1;
-                        }
-                        else
-                        {
-                            telemetryData.EVChargingInProgress = 0;
-                        }
+                        bool evChargingInProgress = IsEVChargingInProgress(wallbox);
+                        telemetryData.EVChargingInProgress = evChargingInProgress? 1 : 0;
 
                         telemetryData.ChargeNow = _chargeNow;
 
                         // read current current (in Amps)
-                        ushort wallbeWallboxCurrentCurrentSetting = Utils.ByteSwap(BitConverter.ToUInt16(wallbox.ReadRegisters(
+                        ushort wallbeWallboxCurrentCurrentSetting = Utils.ByteSwap(BitConverter.ToUInt16(wallbox.Read(
                             WallbeWallboxModbusUnitID,
                             ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
                             WallbeWallboxCurrentCurrentSettingAddress,
@@ -255,15 +249,15 @@ namespace PVMonitor
                         EVUpdate = !EVUpdate;
                         if (EVUpdate)
                         {
-                            if (IsEVChargingInProgress(wallbox))
+                            if (evChargingInProgress)
                             {
                                 OptimizeEVCharging(wallbox, sml.Meter.CurrentPower);
                             }
                             else
                             {
-                                // check if we should start charging our EV with the surplus power, but we need at least 6 A of current
+                                // check if we should start charging our EV with the surplus power, but we need at least 12A of current (our EV can charge with 2 phases)
                                 // or the user set the "charge now" flag via direct method
-                                if ((((sml.Meter.CurrentPower / 230) < -6.0f) || _chargeNow) && IsEVConnected(wallbox))
+                                if ((((sml.Meter.CurrentPower / 230) < -12.0f) || _chargeNow))
                                 {
                                     StartEVCharging(wallbox);
                                 }
@@ -289,7 +283,8 @@ namespace PVMonitor
                     Debug.WriteLine(ex.Message);
                 }
 
-                await Task.Delay(5000);
+                // wait 5 seconds and go again
+                await Task.Delay(5000).ConfigureAwait(false);
             }
         }
 
@@ -297,7 +292,7 @@ namespace PVMonitor
         {
             // toggle charge now
             _chargeNow = !_chargeNow;
-                        
+
             return Task.FromResult(new MethodResponse((int)HttpStatusCode.OK));
         }
 
@@ -310,15 +305,25 @@ namespace PVMonitor
         {
             if (IsEVConnected(wallbox))
             {
-                // start charging
-                wallbox.WriteCoil(WallbeWallboxModbusUnitID, WallbeWallboxEnableChargingFlagAddress, true);
+                // check if we already set our charging enabled flag
+                bool chargingEnabled = BitConverter.ToBoolean(wallbox.Read(
+                WallbeWallboxModbusUnitID,
+                ModbusTCPClient.FunctionCode.ReadCoilStatus,
+                WallbeWallboxEnableChargingFlagAddress,
+                1));
+
+                if (!chargingEnabled)
+                {
+                    // start charging
+                    wallbox.WriteCoil(WallbeWallboxModbusUnitID, WallbeWallboxEnableChargingFlagAddress, true);
+                }
             }
         }
 
         private static bool IsEVConnected(ModbusTCPClient wallbox)
         {
             // read EV status
-            char EVStatus = (char)Utils.ByteSwap(BitConverter.ToUInt16(wallbox.ReadRegisters(
+            char EVStatus = (char)Utils.ByteSwap(BitConverter.ToUInt16(wallbox.Read(
                 WallbeWallboxModbusUnitID,
                 ModbusTCPClient.FunctionCode.ReadInputRegisters,
                 WallbeWallboxEVStatusAddress,
@@ -344,20 +349,20 @@ namespace PVMonitor
             // we decrease our charging current when currentPower is above 0 (again indicated we are comsuming pwoer from the grid)
 
             // read maximum current rating
-            ushort maxCurrent = Utils.ByteSwap(BitConverter.ToUInt16(wallbox.ReadRegisters(
+            ushort maxCurrent = Utils.ByteSwap(BitConverter.ToUInt16(wallbox.Read(
                 WallbeWallboxModbusUnitID,
                 ModbusTCPClient.FunctionCode.ReadInputRegisters,
                 WallbeWallboxMaxCurrentSettingAddress,
                 1)));
 
             // read current current (in Amps)
-            ushort wallbeWallboxCurrentCurrentSetting = Utils.ByteSwap(BitConverter.ToUInt16(wallbox.ReadRegisters(
+            ushort wallbeWallboxCurrentCurrentSetting = Utils.ByteSwap(BitConverter.ToUInt16(wallbox.Read(
                 WallbeWallboxModbusUnitID,
                 ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
                 WallbeWallboxCurrentCurrentSettingAddress,
                 1)));
 
-            // check if we have reached our limits
+            // check if we have reached our limits (we define a 1KW "deadzone" from -500W to 500W where we keep things the way they are to cater for jitter)
             // "charge now" overwrites this and charges as quickly as possible
             if ((wallbeWallboxCurrentCurrentSetting < maxCurrent) && ((currentPower < -500) || _chargeNow))
             {
@@ -367,10 +372,10 @@ namespace PVMonitor
                     WallbeWallboxDesiredCurrentSettingAddress,
                     new ushort[] { (ushort)(wallbeWallboxCurrentCurrentSetting + 1) });
             }
-            else if (currentPower > 0)
+            else if (currentPower > 500)
             {
                 // need to decrease our charging current
-                // "charge now" overwrites this and charges as quickly as possible
+                // "charge now" overwrites this and charges with maximum power
                 if (!_chargeNow)
                 {
                     if (wallbeWallboxCurrentCurrentSetting == WallbeWallboxMinChargingCurrent)
@@ -393,7 +398,7 @@ namespace PVMonitor
         private static bool IsEVChargingInProgress(ModbusTCPClient wallbox)
         {
             // read EV status
-            char EVStatus = (char)Utils.ByteSwap(BitConverter.ToUInt16(wallbox.ReadRegisters(
+            char EVStatus = (char)Utils.ByteSwap(BitConverter.ToUInt16(wallbox.Read(
                 WallbeWallboxModbusUnitID,
                 ModbusTCPClient.FunctionCode.ReadInputRegisters,
                 WallbeWallboxEVStatusAddress,

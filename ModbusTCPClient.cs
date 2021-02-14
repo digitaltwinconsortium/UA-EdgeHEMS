@@ -3,6 +3,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
+using System.Threading.Tasks;
 
 namespace PVMonitor
 {
@@ -41,7 +42,7 @@ namespace PVMonitor
             buffer[5] = (byte) (Length & 0x00FF);
 
             buffer[6] = UnitID;
-            
+
             buffer[7] = FunctionCode;
 
             Payload.CopyTo(buffer, 8);
@@ -131,12 +132,17 @@ namespace PVMonitor
             tcpClient = null;
         }
 
-        public byte[] ReadRegisters(byte unitID, FunctionCode function, ushort registerBaseAddress, ushort count)
+        public byte[] Read(byte unitID, FunctionCode function, ushort registerBaseAddress, ushort count)
         {
+            // debounce reading to not overwhelm our poor little Modbus server
+            Task.Delay(1000).GetAwaiter().GetResult();
+
             // check funtion code
-            if ((function != FunctionCode.ReadInputRegisters) && (function != FunctionCode.ReadHoldingRegisters))
+            if ((function != FunctionCode.ReadInputRegisters)
+             && (function != FunctionCode.ReadHoldingRegisters)
+             && (function != FunctionCode.ReadCoilStatus))
             {
-                throw new ArgumentException("Only Input registers or holding registers can be read");
+                throw new ArgumentException("Only coil, input registers and holding registers can be read");
             }
 
             ApplicationDataUnit aduRequest = new ApplicationDataUnit();
@@ -149,10 +155,10 @@ namespace PVMonitor
             aduRequest.Payload[1] = (byte) (registerBaseAddress & 0x00FF);
             aduRequest.Payload[2] = (byte) (count >> 8);
             aduRequest.Payload[3] = (byte) (count & 0x00FF);
-            
+
             byte[] buffer = new byte[ApplicationDataUnit.maxADU];
             aduRequest.CopyADUToNetworkBuffer(buffer);
-            
+
             // send request to Modbus server
             tcpClient.GetStream().Write(buffer, 0, ApplicationDataUnit.headerLength + 4);
 

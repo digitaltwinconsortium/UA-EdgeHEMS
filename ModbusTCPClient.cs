@@ -1,6 +1,5 @@
 ﻿
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading.Tasks;
@@ -114,16 +113,9 @@ namespace PVMonitor
 
         public void Connect(string ipAddress, int port)
         {
-            try
-            {
-                tcpClient = new TcpClient(ipAddress, port);
-                tcpClient.GetStream().ReadTimeout = timeout;
-                tcpClient.GetStream().WriteTimeout = timeout;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine(ex.Message);
-            }
+            tcpClient = new TcpClient(ipAddress, port);
+            tcpClient.GetStream().ReadTimeout = timeout;
+            tcpClient.GetStream().WriteTimeout = timeout;
         }
 
         public void Disconnect()

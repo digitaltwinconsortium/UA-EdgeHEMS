@@ -4,10 +4,12 @@ using Microsoft.Azure.Devices.Provisioning.Client;
 using Microsoft.Azure.Devices.Provisioning.Client.Transport;
 using Microsoft.Azure.Devices.Shared;
 using Newtonsoft.Json;
+using Serilog;
 using System;
 using System.Diagnostics;
 using System.IO.Ports;
 using System.Net;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -57,6 +59,19 @@ namespace PVMonitor
                 System.Threading.Thread.Sleep(1000);
             }
 #endif
+            // init log file
+            Log.Logger = new LoggerConfiguration()
+                .WriteTo.Console()
+                .WriteTo.File(
+                        "logfile.txt",
+                        fileSizeLimitBytes: 1024 * 1024,
+                        flushToDiskInterval: TimeSpan.FromSeconds(30),
+                        rollOnFileSizeLimit: true,
+                        retainedFileCountLimit: 2)
+                .MinimumLevel.Debug()
+                .CreateLogger();
+            Log.Information($"{Assembly.GetExecutingAssembly()} V{FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location).FileVersion}");
+
             // init Modbus TCP client for wallbox
             ModbusTCPClient wallbox = new ModbusTCPClient();
             wallbox.Connect(WallbeWallboxBaseAddress, WallbeWallboxModbusTCPPort);
@@ -94,7 +109,7 @@ namespace PVMonitor
             string[] ports = SerialPort.GetPortNames();
             foreach (string port in ports)
             {
-                Console.WriteLine("Serial port available: " + port);
+                Log.Information("Serial port available: " + port);
             }
 
             // start processing smart meter messages
@@ -124,13 +139,13 @@ namespace PVMonitor
             }
             catch (Exception ex)
             {
-                Debug.WriteLine(ex.Message);
+                Log.Error(ex, "Registering device failed!");
             }
 
-            bool EVUpdate = false;
             while (true)
             {
                 TelemetryData telemetryData = new TelemetryData();
+                telemetryData.ChargeNow = _chargeNow;
 
                 try
                 {
@@ -150,7 +165,7 @@ namespace PVMonitor
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine(ex.Message);
+                    Log.Error(ex, "Getting weather data failed!");
                 }
 
                 try
@@ -164,8 +179,8 @@ namespace PVMonitor
                     Forecast forecast = JsonConvert.DeserializeObject<Forecast>(json);
                     if (forecast != null && forecast.list != null && forecast.list.Count == 40)
                     {
-                        telemetryData.CloudinessForecast = "Cloudiness on " + forecast.list[0].dt_txt + ": " + forecast.list[0].clouds.all + "%\r\n";
-                        for (int i = 1; i < 40; i++)
+                        telemetryData.CloudinessForecast = string.Empty;
+                        for (int i = 0; i < 40; i++)
                         {
                             telemetryData.CloudinessForecast += "Cloudiness on " + forecast.list[i].dt_txt + ": " + forecast.list[i].clouds.all + "%\r\n";
                         }
@@ -173,7 +188,7 @@ namespace PVMonitor
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine(ex.Message);
+                    Log.Error(ex, "Getting weather forecast failed!");
                 }
 
                 try
@@ -207,36 +222,41 @@ namespace PVMonitor
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine(ex.Message);
+                    Log.Error(ex, "Getting converter data failed!");
                 }
 
                 try
                 {
                     // read the current smart meter data
-                    if (sml != null)
+                    telemetryData.MeterEnergyPurchased = sml.Meter.EnergyPurchased;
+                    telemetryData.MeterEnergySold = sml.Meter.EnergySold;
+                    telemetryData.CurrentPower = sml.Meter.CurrentPower;
+
+                    telemetryData.EnergyCost = telemetryData.MeterEnergyPurchased * KWhCost;
+                    telemetryData.EnergyProfit = telemetryData.MeterEnergySold * KWhProfit;
+
+                    // calculate energy consumed from the other telemetry, if available
+                    telemetryData.MeterEnergyConsumed = 0.0;
+                    if ((telemetryData.MeterEnergyPurchased != 0.0)
+                        && (telemetryData.MeterEnergySold != 0.0)
+                        && (telemetryData.PVOutputEnergyTotal != 0.0))
                     {
-                        telemetryData.MeterEnergyPurchased = sml.Meter.EnergyPurchased;
-                        telemetryData.MeterEnergySold = sml.Meter.EnergySold;
-                        telemetryData.CurrentPower = sml.Meter.CurrentPower;
+                        telemetryData.MeterEnergyConsumed = telemetryData.PVOutputEnergyTotal + sml.Meter.EnergyPurchased - sml.Meter.EnergySold;
+                        telemetryData.CurrentPowerConsumed = telemetryData.PVOutputPower + sml.Meter.CurrentPower;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Getting smart meter data failed!");
+                }
 
-                        telemetryData.EnergyCost = telemetryData.MeterEnergyPurchased * KWhCost;
-                        telemetryData.EnergyProfit = telemetryData.MeterEnergySold * KWhProfit;
-
-                        // calculate energy consumed from the other telemetry, if available
-                        telemetryData.MeterEnergyConsumed = 0.0;
-                        if ((telemetryData.MeterEnergyPurchased != 0.0)
-                         && (telemetryData.MeterEnergySold != 0.0)
-                         && (telemetryData.PVOutputEnergyTotal != 0.0))
-                        {
-                            telemetryData.MeterEnergyConsumed = telemetryData.PVOutputEnergyTotal + sml.Meter.EnergyPurchased - sml.Meter.EnergySold;
-                            telemetryData.CurrentPowerConsumed = telemetryData.PVOutputPower + sml.Meter.CurrentPower;
-                        }
-
-                        bool evChargingInProgress = IsEVChargingInProgress(wallbox);
-                        telemetryData.EVChargingInProgress = evChargingInProgress? 1 : 0;
-
-                        telemetryData.ChargeNow = _chargeNow;
-
+                try
+                {
+                    // ramp up or down EV charging, based on surplus
+                    bool chargingInProgress = IsEVChargingInProgress(wallbox);
+                    telemetryData.EVChargingInProgress = chargingInProgress? 1 : 0;
+                    if (chargingInProgress)
+                    {
                         // read current current (in Amps)
                         ushort wallbeWallboxCurrentCurrentSetting = Utils.ByteSwap(BitConverter.ToUInt16(wallbox.Read(
                             WallbeWallboxModbusUnitID,
@@ -245,29 +265,23 @@ namespace PVMonitor
                             1)));
                         telemetryData.WallboxCurrent = wallbeWallboxCurrentCurrentSetting;
 
-                        // ramp up or down EV charging, based on surplus, every second pass through the loop
-                        EVUpdate = !EVUpdate;
-                        if (EVUpdate)
+                        OptimizeEVCharging(wallbox, sml.Meter.CurrentPower);
+                    }
+                    else
+                    {
+                        telemetryData.WallboxCurrent = 0;
+
+                        // check if we should start charging our EV with the surplus power, but we need at least 12A of current (our EV can charge with 2 phases)
+                        // or the user set the "charge now" flag via direct method
+                        if ((((sml.Meter.CurrentPower / 230) < -12.0f) || _chargeNow))
                         {
-                            if (evChargingInProgress)
-                            {
-                                OptimizeEVCharging(wallbox, sml.Meter.CurrentPower);
-                            }
-                            else
-                            {
-                                // check if we should start charging our EV with the surplus power, but we need at least 12A of current (our EV can charge with 2 phases)
-                                // or the user set the "charge now" flag via direct method
-                                if ((((sml.Meter.CurrentPower / 230) < -12.0f) || _chargeNow))
-                                {
-                                    StartEVCharging(wallbox);
-                                }
-                            }
+                            StartEVCharging(wallbox);
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine(ex.Message);
+                    Log.Error(ex, "EV charing control failed!");
                 }
 
                 try
@@ -280,7 +294,7 @@ namespace PVMonitor
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine(ex.Message);
+                    Log.Error(ex, "Sending telemetry failed!");
                 }
 
                 // wait 5 seconds and go again
@@ -332,7 +346,7 @@ namespace PVMonitor
             switch (EVStatus)
             {
                 case 'A': return false; // no vehicle connected
-                case 'B': return true; // vehicle connected, not charging
+                case 'B': return true;  // vehicle connected, not charging
                 case 'C': return true;  // vehicle connected, charging, no ventilation required
                 case 'D': return true;  // vehicle connected, charging, ventilation required
                 case 'E': return false; // wallbox has no power

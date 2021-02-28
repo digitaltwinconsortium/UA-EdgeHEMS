@@ -16,21 +16,14 @@ namespace PVMonitor
 
         public SmartMessageLanguage(string serialPortName)
         {
-            try
+            // open the serial port
+            _serialPort = new SerialPort(serialPortName, 9600, Parity.None, 8, StopBits.One)
             {
-                // open the serial port
-                _serialPort = new SerialPort(serialPortName, 9600, Parity.None, 8, StopBits.One)
-                {
-                    ReadTimeout = 2000
-                };
-                _serialPort.Open();
+                ReadTimeout = 2000
+            };
+            _serialPort.Open();
 
-                _reader = new BinaryReader(_serialPort.BaseStream);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine(ex.Message);
-            }
+            _reader = new BinaryReader(_serialPort.BaseStream);
         }
 
         public void ProcessStream()
@@ -71,6 +64,7 @@ namespace PVMonitor
                     catch (Exception ex)
                     {
                         Debug.WriteLine(ex.Message);
+                        Debug.WriteLine(ex.StackTrace);
                     }
                 }
             }).Start();
@@ -219,67 +213,67 @@ namespace PVMonitor
             {
                 case SMLConstants.PublicOpenReq:
                     throw new NotImplementedException();
-                
+
                 case SMLConstants.PublicOpenRes:
                     ProcessOpenResponse();
                     break;
-                
+
                 case SMLConstants.PublicCloseReq:
                     throw new NotImplementedException();
-                
+
                 case SMLConstants.PublicCloseRes:
                     ProcessCloseResponse();
                     break;
-                
+
                 case SMLConstants.GetProfilePackReq:
                     throw new NotImplementedException();
-                
+
                 case SMLConstants.GetProfilePackRes:
                     throw new NotImplementedException();
-                
+
                 case SMLConstants.GetProfileListReq:
                     throw new NotImplementedException();
-                
+
                 case SMLConstants.GetProfileListRes:
                     throw new NotImplementedException();
-                
+
                 case SMLConstants.GetProcParameterReq:
                     throw new NotImplementedException();
-                
+
                 case SMLConstants.GetProcParameterRes:
                     throw new NotImplementedException();
-                
+
                 case SMLConstants.SetProcParameterRes:
                     throw new NotImplementedException();
-                
+
                 case SMLConstants.GetListReq:
                     throw new NotImplementedException();
-                
+
                 case SMLConstants.GetListRes:
                     ProcessGetListResponse();
                     break;
-                
+
                 case SMLConstants.GetCosemReq:
                     throw new NotImplementedException();
-                
+
                 case SMLConstants.GetCosemRes:
                     throw new NotImplementedException();
-                
+
                 case SMLConstants.SetCosemReq:
                     throw new NotImplementedException();
-                
+
                 case SMLConstants.SetCosemRes:
                     throw new NotImplementedException();
-                
+
                 case SMLConstants.ActionCosemReq:
                     throw new NotImplementedException();
-                
+
                 case SMLConstants.ActionCosemRes:
                     throw new NotImplementedException();
-                
+
                 case SMLConstants.AttentionRes:
                     throw new NotImplementedException();
-                
+
                 default:
                    throw new InvalidDataException("Unknown command received: " + command.ToString());
             }
@@ -689,7 +683,7 @@ namespace PVMonitor
                 length = 0;
                 return false;
             }
-            
+
             type = (SMLType)((byteRead & SMLConstants.TypeMask) >> 4);
 
             length = byteRead & SMLConstants.LengthMask;
@@ -697,10 +691,10 @@ namespace PVMonitor
             {
                 // read the extra length byte
                 byte extaLength = _reader.ReadByte();
-                
+
                 length = (length << 4) | extaLength;
             }
-            
+
             // list types don't count the type byte as part of the length, while all others do
             if (type != SMLType.List)
             {

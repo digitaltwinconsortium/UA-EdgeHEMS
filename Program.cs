@@ -150,11 +150,12 @@ namespace PVMonitor
                 try
                 {
                     // read the current weather data from web service
-                    using WebClient webClient = new WebClient
+                    WebClient webClient = new WebClient
                     {
                         BaseAddress = "https://api.openweathermap.org/"
                     };
-                    var json = webClient.DownloadString("data/2.5/weather?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b");
+
+                    string json = webClient.DownloadString("data/2.5/weather?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b");
                     WeatherInfo weather = JsonConvert.DeserializeObject<WeatherInfo>(json);
                     if (weather != null)
                     {
@@ -162,6 +163,8 @@ namespace PVMonitor
                         telemetryData.WindSpeed = weather.wind.speed;
                         telemetryData.CloudCover = weather.weather[0].description;
                     }
+
+                    webClient.Dispose();
                 }
                 catch (Exception ex)
                 {
@@ -171,11 +174,12 @@ namespace PVMonitor
                 try
                 {
                     // read the current forecast data from web service
-                    using WebClient webClient = new WebClient
+                    WebClient webClient = new WebClient
                     {
                         BaseAddress = "https://api.openweathermap.org/"
                     };
-                    var json = webClient.DownloadString("data/2.5/forecast?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b");
+
+                    string json = webClient.DownloadString("data/2.5/forecast?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b");
                     Forecast forecast = JsonConvert.DeserializeObject<Forecast>(json);
                     if (forecast != null && forecast.list != null && forecast.list.Count == 40)
                     {
@@ -185,6 +189,8 @@ namespace PVMonitor
                             telemetryData.CloudinessForecast += "Cloudiness on " + forecast.list[i].dt_txt + ": " + forecast.list[i].clouds.all + "%\r\n";
                         }
                     }
+
+                    webClient.Dispose();
                 }
                 catch (Exception ex)
                 {
@@ -194,11 +200,12 @@ namespace PVMonitor
                 try
                 {
                     // read the current converter data from web service
-                    using WebClient webClient = new WebClient
+                    WebClient webClient = new WebClient
                     {
                         BaseAddress = "http://" + FroniusInverterBaseAddress
                     };
-                    var json = webClient.DownloadString("solar_api/v1/GetInverterRealtimeData.cgi?Scope=Device&DeviceID=1&DataCollection=CommonInverterData");
+
+                    string json = webClient.DownloadString("solar_api/v1/GetInverterRealtimeData.cgi?Scope=Device&DeviceID=1&DataCollection=CommonInverterData");
                     DCACConverter converter = JsonConvert.DeserializeObject<DCACConverter>(json);
                     if (converter != null)
                     {
@@ -219,6 +226,8 @@ namespace PVMonitor
                             telemetryData.PVOutputEnergyTotal = ((double)converter.Body.Data.TOTAL_ENERGY.Value) / 1000.0;
                         }
                     }
+
+                    webClient.Dispose();
                 }
                 catch (Exception ex)
                 {
@@ -427,6 +436,52 @@ namespace PVMonitor
                 case 'E': return false; // wallbox has no power
                 case 'F': return false; // wallbox not available
                 default: return false;
+            }
+        }
+
+        private static void ActivateTPKasaSmartDevice(string deviceName, string username, string password, bool activate)
+        {
+            try
+            {
+                // login
+                WebClient webClient = new WebClient();
+                webClient.Headers[HttpRequestHeader.ContentType] = "application/json";
+                string response = webClient.UploadString("https://wap.tplinkcloud.com", "{\"method\":\"login\",\"params\":{\"appType\":\"Kasa_Android\",\"cloudPassword\":\"" + password + "\",\"cloudUserName\":\"" + username + "\",\"terminalUUID\":\"" + Guid.NewGuid().ToString() + "\"}}");
+                TPLinkKasa.LoginResponse tpLinkLoginResponse = JsonConvert.DeserializeObject<TPLinkKasa.LoginResponse>(response);
+
+                // get device list
+                response = webClient.UploadString("https://wap.tplinkcloud.com/?token=" + tpLinkLoginResponse.result.token, "{\"method\":\"getDeviceList\"}");
+                TPLinkKasa.GetDeviceListResponse getDeviceListResponse = JsonConvert.DeserializeObject<TPLinkKasa.GetDeviceListResponse>(response);
+
+                // find our device
+                string deviceID = string.Empty;
+                foreach (TPLinkKasa.DeviceListItem item in getDeviceListResponse.result.deviceList)
+                {
+                    if (item.alias == deviceName)
+                    {
+                        deviceID = item.deviceId;
+                        break;
+                    }
+                }
+
+                // activate/deactivate it if we found it
+                if (!string.IsNullOrEmpty(deviceID))
+                {
+                    int active = 0;
+                    if (activate)
+                    {
+                        active = 1;
+                    }
+
+                    response = webClient.UploadString("https://wap.tplinkcloud.com/?token=" + tpLinkLoginResponse.result.token, "{\"method\":\"passthrough\",\"params\":{\"deviceId\":\"" + deviceID + "\",\"requestData\":'{\"system\":{\"set_relay_state\":{ \"state\":" + active.ToString() + "}}}'}}");
+                    TPLinkKasa.PassThroughResponse passthroughResponse = JsonConvert.DeserializeObject<TPLinkKasa.PassThroughResponse>(response);
+                }
+
+                webClient.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "TPLink Kasa device activation/deactivation failed!");
             }
         }
     }

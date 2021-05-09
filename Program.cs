@@ -37,7 +37,7 @@ namespace PVMonitor
         private const int WallbeWallboxEnableChargingFlagAddress = 400;
 
         private const float KWhCost = 0.2850f;
-        private const float KWhProfit = 0.1018f;
+        private const float KWhProfit = 0.0944f;
         private const float GridExportPowerLimit = 7000f;
 
         private static bool _chargeNow = false;

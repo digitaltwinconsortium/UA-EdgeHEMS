@@ -199,6 +199,9 @@ namespace PVMonitor
 
         public void WriteHoldingRegisters(byte unitID, ushort registerBaseAddress, ushort[] values)
         {
+            // debounce writing to not overwhelm our poor little Modbus server
+            Task.Delay(1000).GetAwaiter().GetResult();
+
             if ((11 + (values.Length * 2)) > ApplicationDataUnit.maxADU)
             {
                 throw new ArgumentException("Too many values");
@@ -271,6 +274,9 @@ namespace PVMonitor
 
         public void WriteCoil(byte unitID, ushort coilAddress, bool set)
         {
+            // debounce writing to not overwhelm our poor little Modbus server
+            Task.Delay(1000).GetAwaiter().GetResult();
+
             ApplicationDataUnit aduRequest = new ApplicationDataUnit();
             aduRequest.TransactionID = transactionID++;
             aduRequest.Length = 6;

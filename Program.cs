@@ -142,9 +142,9 @@ namespace PVMonitor
                 Log.Error(ex, "Registering device failed!");
             }
 
+            TelemetryData telemetryData = new TelemetryData();
             while (true)
             {
-                TelemetryData telemetryData = new TelemetryData();
                 telemetryData.ChargeNow = _chargeNow;
 
                 try

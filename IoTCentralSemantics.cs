@@ -24,6 +24,7 @@ namespace PVMonitor
             WallboxCurrent = 0;
             CloudinessForecast = "not available";
             ChargeNow = false;
+            NumChargingPhases = 2;
         }
 
         public double Temperature { get; set; }
@@ -61,5 +62,7 @@ namespace PVMonitor
         public string CloudinessForecast { get; set; }
 
         public bool ChargeNow { get; set; }
+
+        public int NumChargingPhases { get; set; }
     }
 }

@@ -41,6 +41,7 @@ namespace PVMonitor
         private const float GridExportPowerLimit = 7000f;
 
         private static bool _chargeNow = false;
+        private static int _chargingPhases = 2;
 
         static async Task Main(string[] args)
         {
@@ -134,8 +135,9 @@ namespace PVMonitor
                 var connectionString = "HostName=" + result.AssignedHub + ";DeviceId=" + result.DeviceId + ";SharedAccessKey=" + primaryKey;
                 deviceClient = DeviceClient.CreateFromConnectionString(connectionString, TransportType.Mqtt);
 
-                // register our method
+                // register our methods
                 await deviceClient.SetMethodHandlerAsync("ChargeNowToggle", ChargeNowHandler, null);
+                await deviceClient.SetMethodHandlerAsync("ChargingPhases", ChargingPhasesHandler, null);
             }
             catch (Exception ex)
             {
@@ -146,6 +148,7 @@ namespace PVMonitor
             while (true)
             {
                 telemetryData.ChargeNow = _chargeNow;
+                telemetryData.NumChargingPhases = _chargingPhases;
 
                 try
                 {
@@ -280,9 +283,9 @@ namespace PVMonitor
                     {
                         telemetryData.WallboxCurrent = 0;
 
-                        // check if we should start charging our EV with the surplus power, but we need at least 12A of current (our EV can charge with 2 phases)
+                        // check if we should start charging our EV with the surplus power, but we need at least 6A of current per charing phase
                         // or the user set the "charge now" flag via direct method
-                        if ((((sml.Meter.CurrentPower / 230) < -12.0f) || _chargeNow))
+                        if (((sml.Meter.CurrentPower / 230) < (_chargingPhases * -6.0f)) || _chargeNow)
                         {
                             StartEVCharging(wallbox);
                         }
@@ -309,6 +312,19 @@ namespace PVMonitor
                 // wait 5 seconds and go again
                 await Task.Delay(5000).ConfigureAwait(false);
             }
+        }
+
+        private static Task<MethodResponse> ChargingPhasesHandler(MethodRequest methodRequest, object userContext)
+        {
+            // increase charing pahses. They can be 1, 2 or 3. Most hybrids only charge on a single phase, most EVs with 2 or even 3 phases
+            _chargingPhases += 1;
+
+            if (_chargingPhases > 3)
+            {
+                _chargingPhases = 1;
+            }
+
+            return Task.FromResult(new MethodResponse((int)HttpStatusCode.OK));
         }
 
         private static Task<MethodResponse> ChargeNowHandler(MethodRequest methodRequest, object userContext)
@@ -386,8 +402,8 @@ namespace PVMonitor
                 1)));
 
             // check if we have reached our limits (we define a 1KW "deadzone" from -500W to 500W where we keep things the way they are to cater for jitter)
-            // "charge now" overwrites this and charges as quickly as possible
-            if ((wallbeWallboxCurrentCurrentSetting < maxCurrent) && ((currentPower < -500) || _chargeNow))
+            // "charge now" overwrites this and always charges, but as slowly as possible
+            if ((wallbeWallboxCurrentCurrentSetting < maxCurrent) && (currentPower < -500) && !_chargeNow)
             {
                 // increse desired current by 1 Amp
                 wallbox.WriteHoldingRegisters(
@@ -398,22 +414,21 @@ namespace PVMonitor
             else if (currentPower > 500)
             {
                 // need to decrease our charging current
-                // "charge now" overwrites this and charges with maximum power
-                if (!_chargeNow)
+                if (wallbeWallboxCurrentCurrentSetting == WallbeWallboxMinChargingCurrent)
                 {
-                    if (wallbeWallboxCurrentCurrentSetting == WallbeWallboxMinChargingCurrent)
+                    // we are already at the minimum, so stop, unless charge now is active
+                    if (!_chargeNow)
                     {
-                        // we are already at the minimum, stop instead
                         StopEVCharging(wallbox);
                     }
-                    else
-                    {
-                        // decrease desired current by 1 Amp
-                        wallbox.WriteHoldingRegisters(
-                            WallbeWallboxModbusUnitID,
-                            WallbeWallboxDesiredCurrentSettingAddress,
-                            new ushort[] { (ushort)(wallbeWallboxCurrentCurrentSetting - 1) });
-                    }
+                }
+                else
+                {
+                    // decrease desired current by 1 Amp
+                    wallbox.WriteHoldingRegisters(
+                        WallbeWallboxModbusUnitID,
+                        WallbeWallboxDesiredCurrentSettingAddress,
+                        new ushort[] { (ushort)(wallbeWallboxCurrentCurrentSetting - 1) });
                 }
             }
         }

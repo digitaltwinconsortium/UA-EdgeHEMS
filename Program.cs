@@ -113,9 +113,17 @@ namespace PVMonitor
                 Log.Information("Serial port available: " + port);
             }
 
-            // start processing smart meter messages
-            SmartMessageLanguage sml = new SmartMessageLanguage(LinuxUSBSerialPort);
-            sml.ProcessStream();
+            SmartMessageLanguage sml = null;
+            try
+            {
+                // start processing smart meter messages
+                sml = new SmartMessageLanguage(LinuxUSBSerialPort);
+                sml.ProcessStream();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Connecting to smart meter failed!");
+            }
 
             DeviceClient deviceClient = null;
             try
@@ -239,22 +247,25 @@ namespace PVMonitor
 
                 try
                 {
-                    // read the current smart meter data
-                    telemetryData.MeterEnergyPurchased = sml.Meter.EnergyPurchased;
-                    telemetryData.MeterEnergySold = sml.Meter.EnergySold;
-                    telemetryData.CurrentPower = sml.Meter.CurrentPower;
-
-                    telemetryData.EnergyCost = telemetryData.MeterEnergyPurchased * KWhCost;
-                    telemetryData.EnergyProfit = telemetryData.MeterEnergySold * KWhProfit;
-
-                    // calculate energy consumed from the other telemetry, if available
-                    telemetryData.MeterEnergyConsumed = 0.0;
-                    if ((telemetryData.MeterEnergyPurchased != 0.0)
-                        && (telemetryData.MeterEnergySold != 0.0)
-                        && (telemetryData.PVOutputEnergyTotal != 0.0))
+                    if (sml != null)
                     {
-                        telemetryData.MeterEnergyConsumed = telemetryData.PVOutputEnergyTotal + sml.Meter.EnergyPurchased - sml.Meter.EnergySold;
-                        telemetryData.CurrentPowerConsumed = telemetryData.PVOutputPower + sml.Meter.CurrentPower;
+                        // read the current smart meter data
+                        telemetryData.MeterEnergyPurchased = sml.Meter.EnergyPurchased;
+                        telemetryData.MeterEnergySold = sml.Meter.EnergySold;
+                        telemetryData.CurrentPower = sml.Meter.CurrentPower;
+
+                        telemetryData.EnergyCost = telemetryData.MeterEnergyPurchased * KWhCost;
+                        telemetryData.EnergyProfit = telemetryData.MeterEnergySold * KWhProfit;
+
+                        // calculate energy consumed from the other telemetry, if available
+                        telemetryData.MeterEnergyConsumed = 0.0;
+                        if ((telemetryData.MeterEnergyPurchased != 0.0)
+                            && (telemetryData.MeterEnergySold != 0.0)
+                            && (telemetryData.PVOutputEnergyTotal != 0.0))
+                        {
+                            telemetryData.MeterEnergyConsumed = telemetryData.PVOutputEnergyTotal + sml.Meter.EnergyPurchased - sml.Meter.EnergySold;
+                            telemetryData.CurrentPowerConsumed = telemetryData.PVOutputPower + sml.Meter.CurrentPower;
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -277,7 +288,7 @@ namespace PVMonitor
                             1)));
                         telemetryData.WallboxCurrent = wallbeWallboxCurrentCurrentSetting;
 
-                        OptimizeEVCharging(wallbox, sml.Meter.CurrentPower);
+                        OptimizeEVCharging(wallbox, telemetryData.CurrentPower);
                     }
                     else
                     {
@@ -285,7 +296,7 @@ namespace PVMonitor
 
                         // check if we should start charging our EV with the surplus power, but we need at least 6A of current per charing phase
                         // or the user set the "charge now" flag via direct method
-                        if (((sml.Meter.CurrentPower / 230) < (_chargingPhases * -6.0f)) || _chargeNow)
+                        if (((telemetryData.CurrentPower / 230) < (_chargingPhases * -6.0f)) || _chargeNow)
                         {
                             StartEVCharging(wallbox);
                         }
@@ -298,11 +309,14 @@ namespace PVMonitor
 
                 try
                 {
-                    string messageString = JsonConvert.SerializeObject(telemetryData);
-                    Message cloudMessage = new Message(Encoding.UTF8.GetBytes(messageString));
-
-                    await deviceClient.SendEventAsync(cloudMessage);
-                    Debug.WriteLine("{0}: {1}", DateTime.Now, messageString);
+                    if (deviceClient != null)
+                    {
+                        string messageString = JsonConvert.SerializeObject(telemetryData);
+                        Message cloudMessage = new Message(Encoding.UTF8.GetBytes(messageString));
+                        
+                        await deviceClient.SendEventAsync(cloudMessage);
+                        Debug.WriteLine("{0}: {1}", DateTime.Now, messageString);
+                    }
                 }
                 catch (Exception ex)
                 {

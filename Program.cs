@@ -9,6 +9,7 @@ using System;
 using System.Diagnostics;
 using System.IO.Ports;
 using System.Net;
+using System.Net.Http;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
@@ -161,13 +162,10 @@ namespace PVMonitor
                 try
                 {
                     // read the current weather data from web service
-                    WebClient webClient = new WebClient
-                    {
-                        BaseAddress = "https://api.openweathermap.org/"
-                    };
+                    HttpClient webClient = new HttpClient();
 
-                    string json = webClient.DownloadString("data/2.5/weather?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b");
-                    WeatherInfo weather = JsonConvert.DeserializeObject<WeatherInfo>(json);
+                    HttpResponseMessage response = webClient.Send(new HttpRequestMessage(HttpMethod.Get, "https://api.openweathermap.org/data/2.5/weather?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b"));
+                    WeatherInfo weather = JsonConvert.DeserializeObject<WeatherInfo>(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
                     if (weather != null)
                     {
                         telemetryData.Temperature = weather.main.temp;
@@ -185,13 +183,10 @@ namespace PVMonitor
                 try
                 {
                     // read the current forecast data from web service
-                    WebClient webClient = new WebClient
-                    {
-                        BaseAddress = "https://api.openweathermap.org/"
-                    };
+                    HttpClient webClient = new HttpClient();
 
-                    string json = webClient.DownloadString("data/2.5/forecast?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b");
-                    Forecast forecast = JsonConvert.DeserializeObject<Forecast>(json);
+                    HttpResponseMessage response = webClient.Send(new HttpRequestMessage(HttpMethod.Get, "https://api.openweathermap.org/data/2.5/forecast?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b"));
+                    Forecast forecast = JsonConvert.DeserializeObject<Forecast>(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
                     if (forecast != null && forecast.list != null && forecast.list.Count == 40)
                     {
                         telemetryData.CloudinessForecast = string.Empty;
@@ -211,13 +206,10 @@ namespace PVMonitor
                 try
                 {
                     // read the current converter data from web service
-                    WebClient webClient = new WebClient
-                    {
-                        BaseAddress = "http://" + FroniusInverterBaseAddress
-                    };
+                    HttpClient webClient = new HttpClient();
 
-                    string json = webClient.DownloadString("solar_api/v1/GetInverterRealtimeData.cgi?Scope=Device&DeviceID=1&DataCollection=CommonInverterData");
-                    DCACConverter converter = JsonConvert.DeserializeObject<DCACConverter>(json);
+                    HttpResponseMessage response = webClient.Send(new HttpRequestMessage(HttpMethod.Get, "http://" + FroniusInverterBaseAddress + "/solar_api/v1/GetInverterRealtimeData.cgi?Scope=Device&DeviceID=1&DataCollection=CommonInverterData"));
+                    DCACConverter converter = JsonConvert.DeserializeObject<DCACConverter>(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
                     if (converter != null)
                     {
                         if (converter.Body.Data.PAC != null)
@@ -305,6 +297,8 @@ namespace PVMonitor
                 catch (Exception ex)
                 {
                     Log.Error(ex, "EV charing control failed!");
+
+                    ModbusReconnect(wallbox);
                 }
 
                 try
@@ -317,6 +311,10 @@ namespace PVMonitor
                         await deviceClient.SendEventAsync(cloudMessage);
                         Debug.WriteLine("{0}: {1}", DateTime.Now, messageString);
                     }
+                    else
+                    {
+                        Log.Error("Azure device client is null!");
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -325,6 +323,22 @@ namespace PVMonitor
 
                 // wait 5 seconds and go again
                 await Task.Delay(5000).ConfigureAwait(false);
+            }
+        }
+
+        private static void ModbusReconnect(ModbusTCPClient wallbox)
+        {
+            try
+            {
+                wallbox.Disconnect();
+
+                Task.Delay(1000).GetAwaiter().GetResult();
+
+                wallbox.Connect(WallbeWallboxBaseAddress, WallbeWallboxModbusTCPPort);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Reconnecting to Modbus Server failed!");
             }
         }
 
@@ -473,14 +487,17 @@ namespace PVMonitor
             try
             {
                 // login
-                WebClient webClient = new WebClient();
-                webClient.Headers[HttpRequestHeader.ContentType] = "application/json";
-                string response = webClient.UploadString("https://wap.tplinkcloud.com", "{\"method\":\"login\",\"params\":{\"appType\":\"Kasa_Android\",\"cloudPassword\":\"" + password + "\",\"cloudUserName\":\"" + username + "\",\"terminalUUID\":\"" + Guid.NewGuid().ToString() + "\"}}");
-                TPLinkKasa.LoginResponse tpLinkLoginResponse = JsonConvert.DeserializeObject<TPLinkKasa.LoginResponse>(response);
+                HttpClient webClient = new HttpClient();
+                string stringContent = "{\"method\":\"login\",\"params\":{\"appType\":\"Kasa_Android\",\"cloudPassword\":\"" + password + "\",\"cloudUserName\":\"" + username + "\",\"terminalUUID\":\"" + Guid.NewGuid().ToString() + "\"}}";
+                HttpContent content = new StringContent(JsonConvert.SerializeObject(stringContent), Encoding.UTF8, "application/json");
+                HttpResponseMessage response = webClient.Send(new HttpRequestMessage(HttpMethod.Put, "https://wap.tplinkcloud.com") { Content = content });
+                TPLinkKasa.LoginResponse tpLinkLoginResponse = JsonConvert.DeserializeObject<TPLinkKasa.LoginResponse>(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
 
                 // get device list
-                response = webClient.UploadString("https://wap.tplinkcloud.com/?token=" + tpLinkLoginResponse.result.token, "{\"method\":\"getDeviceList\"}");
-                TPLinkKasa.GetDeviceListResponse getDeviceListResponse = JsonConvert.DeserializeObject<TPLinkKasa.GetDeviceListResponse>(response);
+                stringContent = "{\"method\":\"getDeviceList\"}";
+                content = new StringContent(JsonConvert.SerializeObject(stringContent), Encoding.UTF8, "application/json");
+                response = webClient.Send(new HttpRequestMessage(HttpMethod.Put, "https://wap.tplinkcloud.com/?token=" + tpLinkLoginResponse.result.token) { Content = content });
+                TPLinkKasa.GetDeviceListResponse getDeviceListResponse = JsonConvert.DeserializeObject<TPLinkKasa.GetDeviceListResponse>(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
 
                 // find our device
                 string deviceID = string.Empty;
@@ -502,8 +519,10 @@ namespace PVMonitor
                         active = 1;
                     }
 
-                    response = webClient.UploadString("https://wap.tplinkcloud.com/?token=" + tpLinkLoginResponse.result.token, "{\"method\":\"passthrough\",\"params\":{\"deviceId\":\"" + deviceID + "\",\"requestData\":'{\"system\":{\"set_relay_state\":{ \"state\":" + active.ToString() + "}}}'}}");
-                    TPLinkKasa.PassThroughResponse passthroughResponse = JsonConvert.DeserializeObject<TPLinkKasa.PassThroughResponse>(response);
+                    stringContent = "{\"method\":\"passthrough\",\"params\":{\"deviceId\":\"" + deviceID + "\",\"requestData\":'{\"system\":{\"set_relay_state\":{ \"state\":" + active.ToString() + "}}}'}}";
+                    content = new StringContent(JsonConvert.SerializeObject(stringContent), Encoding.UTF8, "application/json");
+                    response = webClient.Send(new HttpRequestMessage(HttpMethod.Put, "https://wap.tplinkcloud.com/?token=" + tpLinkLoginResponse.result.token) { Content = content });
+                    TPLinkKasa.PassThroughResponse passThroughResponse = JsonConvert.DeserializeObject<TPLinkKasa.PassThroughResponse>(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
                 }
 
                 webClient.Dispose();

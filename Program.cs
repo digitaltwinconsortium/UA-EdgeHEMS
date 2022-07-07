@@ -83,27 +83,27 @@ namespace PVMonitor
             inverter.Connect(FroniusInverterBaseAddress, FroniusInverterModbusTCPPort);
 
             // read current inverter power limit (percentage)
-            byte[] WMaxLimit = inverter.Read(
+            byte[] WMaxLimit = await inverter.Read(
                 FroniusInverterModbusUnitID,
                 ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
                 SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
-                SunSpecInverterModbusRegisterMapFloat.WMaxLimPctLength);
+                SunSpecInverterModbusRegisterMapFloat.WMaxLimPctLength).ConfigureAwait(false);
 
             int existingLimitPercent = Utils.ByteSwap(BitConverter.ToUInt16(WMaxLimit)) / 100;
 
             // go to the maximum grid export power limit with immediate effect without timeout
-            ushort InverterPowerOutputPercent = (ushort) ((GridExportPowerLimit / FroniusSymoMaxPower) * 100);
-            inverter.WriteHoldingRegisters(
+            ushort InverterPowerOutputPercent = (ushort) (GridExportPowerLimit / FroniusSymoMaxPower * 100);
+            await inverter.WriteHoldingRegisters(
                 FroniusInverterModbusUnitID,
                 SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
-                new ushort[] { (ushort) (InverterPowerOutputPercent * 100), 0, 0, 0, 1});
+                new ushort[] { (ushort) (InverterPowerOutputPercent * 100), 0, 0, 0, 1}).ConfigureAwait(false);
 
             // check new setting
-            WMaxLimit = inverter.Read(
+            WMaxLimit = await inverter.Read(
                 FroniusInverterModbusUnitID,
                 ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
                 SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
-                SunSpecInverterModbusRegisterMapFloat.WMaxLimPctLength);
+                SunSpecInverterModbusRegisterMapFloat.WMaxLimPctLength).ConfigureAwait(false);
 
             int newLimitPercent = Utils.ByteSwap(BitConverter.ToUInt16(WMaxLimit)) / 100;
 
@@ -139,14 +139,14 @@ namespace PVMonitor
                 var transport = new ProvisioningTransportHandlerMqtt(TransportFallbackType.TcpWithWebSocketFallback);
 
                 var provisioningClient = ProvisioningDeviceClient.Create("global.azure-devices-provisioning.net", scopeId, security, transport);
-                var result = await provisioningClient.RegisterAsync();
+                var result = await provisioningClient.RegisterAsync().ConfigureAwait(false);
 
                 var connectionString = "HostName=" + result.AssignedHub + ";DeviceId=" + result.DeviceId + ";SharedAccessKey=" + primaryKey;
                 deviceClient = DeviceClient.CreateFromConnectionString(connectionString, TransportType.Mqtt);
 
                 // register our methods
-                await deviceClient.SetMethodHandlerAsync("ChargeNowToggle", ChargeNowHandler, null);
-                await deviceClient.SetMethodHandlerAsync("ChargingPhases", ChargingPhasesHandler, null);
+                await deviceClient.SetMethodHandlerAsync("ChargeNowToggle", ChargeNowHandler, null).ConfigureAwait(false);
+                await deviceClient.SetMethodHandlerAsync("ChargingPhases", ChargingPhasesHandler, null).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -165,7 +165,7 @@ namespace PVMonitor
                     HttpClient webClient = new HttpClient();
 
                     HttpResponseMessage response = webClient.Send(new HttpRequestMessage(HttpMethod.Get, "https://api.openweathermap.org/data/2.5/weather?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b"));
-                    WeatherInfo weather = JsonConvert.DeserializeObject<WeatherInfo>(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
+                    WeatherInfo weather = JsonConvert.DeserializeObject<WeatherInfo>(await response.Content.ReadAsStringAsync().ConfigureAwait(false));
                     if (weather != null)
                     {
                         telemetryData.Temperature = weather.main.temp;
@@ -186,7 +186,7 @@ namespace PVMonitor
                     HttpClient webClient = new HttpClient();
 
                     HttpResponseMessage response = webClient.Send(new HttpRequestMessage(HttpMethod.Get, "https://api.openweathermap.org/data/2.5/forecast?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b"));
-                    Forecast forecast = JsonConvert.DeserializeObject<Forecast>(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
+                    Forecast forecast = JsonConvert.DeserializeObject<Forecast>(await response.Content.ReadAsStringAsync().ConfigureAwait(false));
                     if (forecast != null && forecast.list != null && forecast.list.Count == 40)
                     {
                         telemetryData.CloudinessForecast = string.Empty;
@@ -209,7 +209,7 @@ namespace PVMonitor
                     HttpClient webClient = new HttpClient();
 
                     HttpResponseMessage response = webClient.Send(new HttpRequestMessage(HttpMethod.Get, "http://" + FroniusInverterBaseAddress + "/solar_api/v1/GetInverterRealtimeData.cgi?Scope=Device&DeviceID=1&DataCollection=CommonInverterData"));
-                    DCACConverter converter = JsonConvert.DeserializeObject<DCACConverter>(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
+                    DCACConverter converter = JsonConvert.DeserializeObject<DCACConverter>(await response.Content.ReadAsStringAsync().ConfigureAwait(false));
                     if (converter != null)
                     {
                         if (converter.Body.Data.PAC != null)
@@ -268,19 +268,23 @@ namespace PVMonitor
                 try
                 {
                     // ramp up or down EV charging, based on surplus
-                    bool chargingInProgress = IsEVChargingInProgress(wallbox);
+                    bool chargingInProgress = await IsEVChargingInProgress(wallbox).ConfigureAwait(false);
                     telemetryData.EVChargingInProgress = chargingInProgress? 1 : 0;
                     if (chargingInProgress)
                     {
                         // read current current (in Amps)
-                        ushort wallbeWallboxCurrentCurrentSetting = Utils.ByteSwap(BitConverter.ToUInt16(wallbox.Read(
-                            WallbeWallboxModbusUnitID,
-                            ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
-                            WallbeWallboxCurrentCurrentSettingAddress,
-                            1)));
+                        ushort wallbeWallboxCurrentCurrentSetting = Utils.ByteSwap(
+                            BitConverter.ToUInt16(
+                                await wallbox.Read(
+                                    WallbeWallboxModbusUnitID,
+                                    ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
+                                    WallbeWallboxCurrentCurrentSettingAddress,
+                                    1).ConfigureAwait(false)
+                                )
+                            );
                         telemetryData.WallboxCurrent = wallbeWallboxCurrentCurrentSetting;
 
-                        OptimizeEVCharging(wallbox, telemetryData.CurrentPower);
+                        await OptimizeEVCharging(wallbox, telemetryData.CurrentPower).ConfigureAwait(false);
                     }
                     else
                     {
@@ -290,7 +294,7 @@ namespace PVMonitor
                         // or the user set the "charge now" flag via direct method
                         if (((telemetryData.CurrentPower / 230) < (_chargingPhases * -6.0f)) || _chargeNow)
                         {
-                            StartEVCharging(wallbox);
+                            await StartEVCharging(wallbox).ConfigureAwait(false);
                         }
                     }
                 }
@@ -298,7 +302,7 @@ namespace PVMonitor
                 {
                     Log.Error(ex, "EV charing control failed!");
 
-                    ModbusReconnect(wallbox);
+                    await ModbusReconnect(wallbox).ConfigureAwait(false);
                 }
 
                 try
@@ -308,7 +312,7 @@ namespace PVMonitor
                         string messageString = JsonConvert.SerializeObject(telemetryData);
                         Message cloudMessage = new Message(Encoding.UTF8.GetBytes(messageString));
                         
-                        await deviceClient.SendEventAsync(cloudMessage);
+                        await deviceClient.SendEventAsync(cloudMessage).ConfigureAwait(false);
                         Debug.WriteLine("{0}: {1}", DateTime.Now, messageString);
                     }
                     else
@@ -326,13 +330,13 @@ namespace PVMonitor
             }
         }
 
-        private static void ModbusReconnect(ModbusTCPClient wallbox)
+        private static async Task ModbusReconnect(ModbusTCPClient wallbox)
         {
             try
             {
                 wallbox.Disconnect();
 
-                Task.Delay(1000).GetAwaiter().GetResult();
+                await Task.Delay(1000).ConfigureAwait(false);
 
                 wallbox.Connect(WallbeWallboxBaseAddress, WallbeWallboxModbusTCPPort);
             }
@@ -363,38 +367,44 @@ namespace PVMonitor
             return Task.FromResult(new MethodResponse((int)HttpStatusCode.OK));
         }
 
-        private static void StopEVCharging(ModbusTCPClient wallbox)
+        private static async Task StopEVCharging(ModbusTCPClient wallbox)
         {
-            wallbox.WriteCoil(WallbeWallboxModbusUnitID, WallbeWallboxEnableChargingFlagAddress, false);
+            await wallbox.WriteCoil(WallbeWallboxModbusUnitID, WallbeWallboxEnableChargingFlagAddress, false).ConfigureAwait(false);
         }
 
-        private static void StartEVCharging(ModbusTCPClient wallbox)
+        private static async Task StartEVCharging(ModbusTCPClient wallbox)
         {
-            if (IsEVConnected(wallbox))
+            if (await IsEVConnected(wallbox).ConfigureAwait(false))
             {
                 // check if we already set our charging enabled flag
-                bool chargingEnabled = BitConverter.ToBoolean(wallbox.Read(
-                WallbeWallboxModbusUnitID,
-                ModbusTCPClient.FunctionCode.ReadCoilStatus,
-                WallbeWallboxEnableChargingFlagAddress,
-                1));
+                bool chargingEnabled = BitConverter.ToBoolean(
+                    await wallbox.Read(
+                        WallbeWallboxModbusUnitID,
+                        ModbusTCPClient.FunctionCode.ReadCoilStatus,
+                        WallbeWallboxEnableChargingFlagAddress,
+                        1).ConfigureAwait(false)
+                    );
 
                 if (!chargingEnabled)
                 {
                     // start charging
-                    wallbox.WriteCoil(WallbeWallboxModbusUnitID, WallbeWallboxEnableChargingFlagAddress, true);
+                    await wallbox.WriteCoil(WallbeWallboxModbusUnitID, WallbeWallboxEnableChargingFlagAddress, true).ConfigureAwait(false);
                 }
             }
         }
 
-        private static bool IsEVConnected(ModbusTCPClient wallbox)
+        private static async Task<bool> IsEVConnected(ModbusTCPClient wallbox)
         {
             // read EV status
-            char EVStatus = (char)Utils.ByteSwap(BitConverter.ToUInt16(wallbox.Read(
-                WallbeWallboxModbusUnitID,
-                ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                WallbeWallboxEVStatusAddress,
-                1)));
+            char EVStatus = (char)Utils.ByteSwap(
+                BitConverter.ToUInt16(
+                    await wallbox.Read(
+                        WallbeWallboxModbusUnitID,
+                        ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                        WallbeWallboxEVStatusAddress,
+                        1).ConfigureAwait(false)
+                    )
+                );
 
             switch (EVStatus)
             {
@@ -408,7 +418,7 @@ namespace PVMonitor
             }
         }
 
-        private static void OptimizeEVCharging(ModbusTCPClient wallbox, double currentPower)
+        private static async Task OptimizeEVCharging(ModbusTCPClient wallbox, double currentPower)
         {
             // we ramp up and down our charging current in 1 Amp increments/decrements
             // we increase our charging current until a) we have reached the maximum the wallbox can handle or
@@ -416,28 +426,36 @@ namespace PVMonitor
             // we decrease our charging current when currentPower is above 0 (again indicated we are comsuming pwoer from the grid)
 
             // read maximum current rating
-            ushort maxCurrent = Utils.ByteSwap(BitConverter.ToUInt16(wallbox.Read(
-                WallbeWallboxModbusUnitID,
-                ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                WallbeWallboxMaxCurrentSettingAddress,
-                1)));
+            ushort maxCurrent = Utils.ByteSwap(
+                BitConverter.ToUInt16(
+                    await wallbox.Read(
+                        WallbeWallboxModbusUnitID,
+                        ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                        WallbeWallboxMaxCurrentSettingAddress,
+                        1).ConfigureAwait(false)
+                    )
+                );
 
             // read current current (in Amps)
-            ushort wallbeWallboxCurrentCurrentSetting = Utils.ByteSwap(BitConverter.ToUInt16(wallbox.Read(
-                WallbeWallboxModbusUnitID,
-                ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
-                WallbeWallboxCurrentCurrentSettingAddress,
-                1)));
+            ushort wallbeWallboxCurrentCurrentSetting = Utils.ByteSwap(
+                BitConverter.ToUInt16(
+                    await wallbox.Read(
+                        WallbeWallboxModbusUnitID,
+                        ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
+                        WallbeWallboxCurrentCurrentSettingAddress,
+                        1).ConfigureAwait(false)
+                    )
+                );
 
             // check if we have reached our limits (we define a 1KW "deadzone" from -500W to 500W where we keep things the way they are to cater for jitter)
             // "charge now" overwrites this and always charges, but as slowly as possible
             if ((wallbeWallboxCurrentCurrentSetting < maxCurrent) && (currentPower < -500) && !_chargeNow)
             {
                 // increse desired current by 1 Amp
-                wallbox.WriteHoldingRegisters(
+                await wallbox.WriteHoldingRegisters(
                     WallbeWallboxModbusUnitID,
                     WallbeWallboxDesiredCurrentSettingAddress,
-                    new ushort[] { (ushort)(wallbeWallboxCurrentCurrentSetting + 1) });
+                    new ushort[] { (ushort)(wallbeWallboxCurrentCurrentSetting + 1) }).ConfigureAwait(false);
             }
             else if (currentPower > 500)
             {
@@ -447,28 +465,32 @@ namespace PVMonitor
                     // we are already at the minimum, so stop, unless charge now is active
                     if (!_chargeNow)
                     {
-                        StopEVCharging(wallbox);
+                        await StopEVCharging(wallbox).ConfigureAwait(false);
                     }
                 }
                 else
                 {
                     // decrease desired current by 1 Amp
-                    wallbox.WriteHoldingRegisters(
+                    await wallbox.WriteHoldingRegisters(
                         WallbeWallboxModbusUnitID,
                         WallbeWallboxDesiredCurrentSettingAddress,
-                        new ushort[] { (ushort)(wallbeWallboxCurrentCurrentSetting - 1) });
+                        new ushort[] { (ushort)(wallbeWallboxCurrentCurrentSetting - 1) }).ConfigureAwait(false);
                 }
             }
         }
 
-        private static bool IsEVChargingInProgress(ModbusTCPClient wallbox)
+        private static async Task<bool> IsEVChargingInProgress(ModbusTCPClient wallbox)
         {
             // read EV status
-            char EVStatus = (char)Utils.ByteSwap(BitConverter.ToUInt16(wallbox.Read(
-                WallbeWallboxModbusUnitID,
-                ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                WallbeWallboxEVStatusAddress,
-                1)));
+            char EVStatus = (char)Utils.ByteSwap(
+                BitConverter.ToUInt16(
+                    await wallbox.Read(
+                        WallbeWallboxModbusUnitID,
+                        ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                        WallbeWallboxEVStatusAddress,
+                        1).ConfigureAwait(false)
+                    )
+                );
 
             switch (EVStatus)
             {
@@ -482,7 +504,7 @@ namespace PVMonitor
             }
         }
 
-        private static void ActivateTPKasaSmartDevice(string deviceName, string username, string password, bool activate)
+        private static async Task ActivateTPKasaSmartDevice(string deviceName, string username, string password, bool activate)
         {
             try
             {
@@ -491,13 +513,13 @@ namespace PVMonitor
                 string stringContent = "{\"method\":\"login\",\"params\":{\"appType\":\"Kasa_Android\",\"cloudPassword\":\"" + password + "\",\"cloudUserName\":\"" + username + "\",\"terminalUUID\":\"" + Guid.NewGuid().ToString() + "\"}}";
                 HttpContent content = new StringContent(JsonConvert.SerializeObject(stringContent), Encoding.UTF8, "application/json");
                 HttpResponseMessage response = webClient.Send(new HttpRequestMessage(HttpMethod.Put, "https://wap.tplinkcloud.com") { Content = content });
-                TPLinkKasa.LoginResponse tpLinkLoginResponse = JsonConvert.DeserializeObject<TPLinkKasa.LoginResponse>(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
+                TPLinkKasa.LoginResponse tpLinkLoginResponse = JsonConvert.DeserializeObject<TPLinkKasa.LoginResponse>(await response.Content.ReadAsStringAsync().ConfigureAwait(false));
 
                 // get device list
                 stringContent = "{\"method\":\"getDeviceList\"}";
                 content = new StringContent(JsonConvert.SerializeObject(stringContent), Encoding.UTF8, "application/json");
                 response = webClient.Send(new HttpRequestMessage(HttpMethod.Put, "https://wap.tplinkcloud.com/?token=" + tpLinkLoginResponse.result.token) { Content = content });
-                TPLinkKasa.GetDeviceListResponse getDeviceListResponse = JsonConvert.DeserializeObject<TPLinkKasa.GetDeviceListResponse>(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
+                TPLinkKasa.GetDeviceListResponse getDeviceListResponse = JsonConvert.DeserializeObject<TPLinkKasa.GetDeviceListResponse>(await response.Content.ReadAsStringAsync().ConfigureAwait(false));
 
                 // find our device
                 string deviceID = string.Empty;
@@ -522,7 +544,7 @@ namespace PVMonitor
                     stringContent = "{\"method\":\"passthrough\",\"params\":{\"deviceId\":\"" + deviceID + "\",\"requestData\":'{\"system\":{\"set_relay_state\":{ \"state\":" + active.ToString() + "}}}'}}";
                     content = new StringContent(JsonConvert.SerializeObject(stringContent), Encoding.UTF8, "application/json");
                     response = webClient.Send(new HttpRequestMessage(HttpMethod.Put, "https://wap.tplinkcloud.com/?token=" + tpLinkLoginResponse.result.token) { Content = content });
-                    TPLinkKasa.PassThroughResponse passThroughResponse = JsonConvert.DeserializeObject<TPLinkKasa.PassThroughResponse>(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
+                    TPLinkKasa.PassThroughResponse passThroughResponse = JsonConvert.DeserializeObject<TPLinkKasa.PassThroughResponse>(await response.Content.ReadAsStringAsync().ConfigureAwait(false));
                 }
 
                 webClient.Dispose();

@@ -124,10 +124,10 @@ namespace PVMonitor
             tcpClient = null;
         }
 
-        public byte[] Read(byte unitID, FunctionCode function, ushort registerBaseAddress, ushort count)
+        public async Task<byte[]> Read(byte unitID, FunctionCode function, ushort registerBaseAddress, ushort count)
         {
             // debounce reading to not overwhelm our poor little Modbus server
-            Task.Delay(1000).GetAwaiter().GetResult();
+            await Task.Delay(1000).ConfigureAwait(false);
 
             // check funtion code
             if ((function != FunctionCode.ReadInputRegisters)
@@ -197,10 +197,10 @@ namespace PVMonitor
             return responseBuffer;
         }
 
-        public void WriteHoldingRegisters(byte unitID, ushort registerBaseAddress, ushort[] values)
+        public async Task WriteHoldingRegisters(byte unitID, ushort registerBaseAddress, ushort[] values)
         {
             // debounce writing to not overwhelm our poor little Modbus server
-            Task.Delay(1000).GetAwaiter().GetResult();
+            await Task.Delay(1000).ConfigureAwait(false);
 
             if ((11 + (values.Length * 2)) > ApplicationDataUnit.maxADU)
             {
@@ -272,10 +272,10 @@ namespace PVMonitor
             }
         }
 
-        public void WriteCoil(byte unitID, ushort coilAddress, bool set)
+        public async Task WriteCoil(byte unitID, ushort coilAddress, bool set)
         {
             // debounce writing to not overwhelm our poor little Modbus server
-            Task.Delay(1000).GetAwaiter().GetResult();
+            await Task.Delay(1000).ConfigureAwait(false);
 
             ApplicationDataUnit aduRequest = new ApplicationDataUnit();
             aduRequest.TransactionID = transactionID++;

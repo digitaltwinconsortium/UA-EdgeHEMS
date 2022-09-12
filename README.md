@@ -1,6 +1,6 @@
 # Energy Management System
 
-This Energy Management System (EMS) is a simple .NetCore app capturing energy telemetry data from photovoltaik system and smart meter and controlling an EV wallbox with the surplus energy available from local production. This is running on Linux on a Raspberry Pi and has a cloud connection to a Microsoft Azure dashboard. 
+This Energy Management System (EMS) is a simple .NetCore app capturing energy telemetry data from a photovoltaik system and a smart meter and controlling an EV wallbox with the surplus energy available from local production. This is running on Linux on a Raspberry Pi and has a cloud connection to a Microsoft Azure dashboard. 
 
 ## Future Extensions
 As a next step, a heat pump will also be managed by the system and (once this is available in 2023) the connected EV battery will be used as an additional energy source during the night via Vechile-to-Home (V2H) leveraging EEBUS (see seperate EEBus.Net repo for a reference implementation).

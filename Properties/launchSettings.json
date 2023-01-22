@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "PVMonitor": {
+      "commandName": "Project"
+    },
+    "Docker": {
+      "commandName": "Docker",
+      "publishAllPorts": true
+    }
+  }
+}

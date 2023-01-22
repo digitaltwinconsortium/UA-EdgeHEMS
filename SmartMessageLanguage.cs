@@ -1,12 +1,13 @@
 ﻿
-using System;
-using System.Diagnostics;
-using System.IO;
-using System.IO.Ports;
-using System.Threading;
-
-namespace PVMonitor
+namespace UAEdgeHEMS
 {
+    using System;
+    using System.Diagnostics;
+    using System.IO;
+    using System.IO.Ports;
+    using System.Threading;
+    using Models;
+
     class SmartMessageLanguage
     {
         private BinaryReader _reader = null;
@@ -21,6 +22,7 @@ namespace PVMonitor
             {
                 ReadTimeout = 2000
             };
+
             _serialPort.Open();
 
             _reader = new BinaryReader(_serialPort.BaseStream);
@@ -173,7 +175,7 @@ namespace PVMonitor
                 {
                     throw new InvalidDataException("Expected CRC16 length of 2");
                 }
-                ushort CRC16 = Utils.ByteSwap(_reader.ReadUInt16());
+                ushort CRC16 = ByteSwapper.ByteSwap(_reader.ReadUInt16());
 
                 // process end of message
                 if (_reader.ReadByte() != SMLConstants.EndOfMessageMarker)
@@ -208,7 +210,7 @@ namespace PVMonitor
             {
                 throw new InvalidDataException("Expected command length of 2");
             }
-            ushort command = Utils.ByteSwap(_reader.ReadUInt16());
+            ushort command = ByteSwapper.ByteSwap(_reader.ReadUInt16());
             switch (command)
             {
                 case SMLConstants.PublicOpenReq:
@@ -388,7 +390,7 @@ namespace PVMonitor
                 {
                     throw new InvalidDataException("Expected unsigned length of 4");
                 }
-                uint timeStamp = Utils.ByteSwap(_reader.ReadUInt32());
+                uint timeStamp = ByteSwapper.ByteSwap(_reader.ReadUInt32());
             }
         }
 
@@ -564,15 +566,15 @@ namespace PVMonitor
 
                     if (length == 8)
                     {
-                        int64 = (long)Utils.ByteSwap((ulong) _reader.ReadInt64());
+                        int64 = (long)ByteSwapper.ByteSwap((ulong) _reader.ReadInt64());
                     }
                     if (length == 4)
                     {
-                        int64 = (int)Utils.ByteSwap((uint) _reader.ReadInt32());
+                        int64 = (int)ByteSwapper.ByteSwap((uint) _reader.ReadInt32());
                     }
                     if (length == 2)
                     {
-                        int64 = (short)Utils.ByteSwap((ushort) _reader.ReadInt16());
+                        int64 = (short)ByteSwapper.ByteSwap((ushort) _reader.ReadInt16());
                     }
                     if (length == 1)
                     {
@@ -599,15 +601,15 @@ namespace PVMonitor
 
                     if (length == 8)
                     {
-                        uint64 = Utils.ByteSwap(_reader.ReadUInt64());
+                        uint64 = ByteSwapper.ByteSwap(_reader.ReadUInt64());
                     }
                     if (length == 4)
                     {
-                        uint64 = Utils.ByteSwap(_reader.ReadUInt32());
+                        uint64 = ByteSwapper.ByteSwap(_reader.ReadUInt32());
                     }
                     if (length == 2)
                     {
-                        uint64 = Utils.ByteSwap(_reader.ReadUInt16());
+                        uint64 = ByteSwapper.ByteSwap(_reader.ReadUInt16());
                     }
                     if (length == 1)
                     {

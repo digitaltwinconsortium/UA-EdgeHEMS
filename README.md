@@ -1,6 +1,6 @@
-# Home Energy Management System
+# Home Energy Management System with an OPC UA Server Interface
 
-This Home Energy Management System (HEMS) is a simple .NetCore app capturing energy telemetry data from a photovoltaik system and a smart meter and controlling an EV wallbox with the surplus energy available from local production. This is running on Linux on a Raspberry Pi and has a cloud connection to a Microsoft Azure dashboard. 
+This Home Energy Management System (HEMS) is an OPC UA Server capturing energy telemetry data from a photovoltaik system and a smart meter and controlling an EV wallbox with the surplus energy available from local production. This is running on Linux on a Raspberry Pi and has a cloud connection to a Microsoft Azure dashboard. 
 
 ## Future Extensions
 As a next step, a heat pump will also be managed by the system and (once this is available in 2023) the connected EV battery will be used as an additional energy source during the night via Vechile-to-Home (V2H) leveraging EEBUS (see seperate EEBus.Net repo for a reference implementation).
@@ -12,5 +12,4 @@ As a next step, a heat pump will also be managed by the system and (once this is
 4. Wallbe wallbox configuration using surplus energy from the PV to charge an Electric Vehicle.
 5. IDM heat pump integration is currently ongoing.
 
-Telemetry is sent to a Microsoft Azure IoT Central application based on the [IoT Central energy app templates](https://apps.azureiotcentral.com/build/energy).
-The device template for the app can be found [here](./PV-Monitor.json).
+Telemetry is made available via an OPC UA server interface.

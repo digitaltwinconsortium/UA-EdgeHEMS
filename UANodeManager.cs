@@ -26,6 +26,17 @@ namespace UAEdgeHEMS
         private const int FroniusInverterModbusTCPPort = 502;
         private const int FroniusInverterModbusUnitID = 1;
 
+        private const string IDMHeatPumpBaseAddress = "192.168.178.91";
+        private const int IDMHeatPumpModbusTCPPort = 502;
+        private const int IDMHeatPumpModbusUnitID = 1;
+
+        private const int IDMHeatPumpPVSurplus = 74;
+        private const int IDMHeatPumpPVProduction = 78;
+        private const int IDMHeatPumpCurrentPowerConsumption = 4122;
+        private const int IDMHeatPumpTapWaterTemp = 1030;
+        private const int IDMHeatPumpHeatingWaterTemp = 1350;
+        private const int IDMHeatPumpStatus = 1090;
+
         private const float FroniusSymoMaxPower = 8200f;
 
         private const string WallbeWallboxBaseAddress = "192.168.178.21";
@@ -158,7 +169,7 @@ namespace UAEdgeHEMS
                 // create our methods
                 MethodState configureAssetMethod = CreateMethod(controlFolder, "IncrementChargingPhases", "IncrementChargingPhases");
                 configureAssetMethod.OnCallMethod = new GenericMethodCalledEventHandler(IncrementChargingPhases);
-  
+
                 MethodState getAssetsMethod = CreateMethod(controlFolder, "ToggleChargeNow", "ToggleChargeNow");
                 getAssetsMethod.OnCallMethod = new GenericMethodCalledEventHandler(ToggleChargeNow);
 

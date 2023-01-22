@@ -141,7 +141,7 @@ namespace UAEdgeHEMS
                 Log.Error(ex, "Connecting to smart meter failed!");
             }
 
-            m_timer = new Timer(UpdateNodeValues, null, 5000, 5000);
+            m_timer = new Timer(UpdateNodeValues, null, 15000, 15000);
         }
 
         public override NodeId New(ISystemContext context, NodeState node)
@@ -441,30 +441,33 @@ namespace UAEdgeHEMS
 
             try
             {
-                // ramp up or down EV charging, based on surplus
-                bool chargingInProgress = IsEVChargingInProgress(_wallbox);
-                _evChargingInProgress.Value = chargingInProgress ? 1.0f : 0.0f;
-                if (chargingInProgress)
+                lock (_wallbox)
                 {
-                    // read current current (in Amps)
-                    ushort wallbeWallboxCurrentCurrentSetting = ByteSwapper.ByteSwap(BitConverter.ToUInt16(_wallbox.Read(
-                        WallbeWallboxModbusUnitID,
-                        ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
-                        WallbeWallboxCurrentCurrentSettingAddress,
-                        1).GetAwaiter().GetResult()));
-                    _wallboxCurrent.Value = (float)wallbeWallboxCurrentCurrentSetting;
-
-                    OptimizeEVCharging(_wallbox, (float)_currentPower.Value);
-                }
-                else
-                {
-                    _wallboxCurrent.Value = 0.0f;
-
-                    // check if we should start charging our EV with the surplus power, but we need at least 6A of current per charing phase
-                    // or the user set the "charge now" flag via direct method
-                    if ((((float)_currentPower.Value / 230.0f) < ((float)_numChargingPhases.Value * -6.0f)) || ((float)_chargeNow.Value == 1.0f))
+                    // ramp up or down EV charging, based on surplus
+                    bool chargingInProgress = IsEVChargingInProgress(_wallbox);
+                    _evChargingInProgress.Value = chargingInProgress ? 1.0f : 0.0f;
+                    if (chargingInProgress)
                     {
-                        StartEVCharging(_wallbox);
+                        // read current current (in Amps)
+                        ushort wallbeWallboxCurrentCurrentSetting = ByteSwapper.ByteSwap(BitConverter.ToUInt16(_wallbox.Read(
+                            WallbeWallboxModbusUnitID,
+                            ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
+                            WallbeWallboxCurrentCurrentSettingAddress,
+                            1).GetAwaiter().GetResult()));
+                        _wallboxCurrent.Value = (float)wallbeWallboxCurrentCurrentSetting;
+
+                        OptimizeEVCharging(_wallbox, (float)_currentPower.Value);
+                    }
+                    else
+                    {
+                        _wallboxCurrent.Value = 0.0f;
+
+                        // check if we should start charging our EV with the surplus power, but we need at least 6A of current per charing phase
+                        // or the user set the "charge now" flag via direct method
+                        if ((((float)_currentPower.Value / 230.0f) < ((float)_numChargingPhases.Value * -6.0f)) || ((float)_chargeNow.Value == 1.0f))
+                        {
+                            StartEVCharging(_wallbox);
+                        }
                     }
                 }
             }
@@ -473,8 +476,11 @@ namespace UAEdgeHEMS
                 Log.Error(ex, "EV charing control failed!");
 
                 // reconnect
-                _wallbox.Disconnect();
-                _wallbox.Connect(WallbeWallboxBaseAddress, WallbeWallboxModbusTCPPort);
+                lock (_wallbox)
+                {
+                    _wallbox.Disconnect();
+                    _wallbox.Connect(WallbeWallboxBaseAddress, WallbeWallboxModbusTCPPort);
+                }
             }
 
             _temperature.Timestamp = DateTime.UtcNow;

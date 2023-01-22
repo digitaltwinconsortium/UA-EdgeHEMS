@@ -4,6 +4,7 @@ namespace UAEdgeHEMS
     using System;
     using System.IO;
     using System.Net.Sockets;
+    using System.Threading;
     using System.Threading.Tasks;
 
     class ModbusTCPClient
@@ -63,6 +64,9 @@ namespace UAEdgeHEMS
 
         public Task<byte[]> Read(byte unitID, FunctionCode function, ushort registerBaseAddress, ushort count)
         {
+            // debounce reading to not overwhelm our poor little Modbus server
+            Thread.Sleep(500);
+
             // check funtion code
             if ((function != FunctionCode.ReadInputRegisters)
              && (function != FunctionCode.ReadHoldingRegisters)

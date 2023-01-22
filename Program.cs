@@ -38,7 +38,7 @@ namespace UAEdgeHEMS
             {
                 ApplicationName = appName,
                 ApplicationType = ApplicationType.Server,
-                ConfigSectionName = "UA.Edge.HEMS"
+                ConfigSectionName = "Ua.Edge.HEMS"
             };
 
             await app.LoadApplicationConfiguration(false).ConfigureAwait(false);
@@ -85,7 +85,7 @@ namespace UAEdgeHEMS
             Log.Logger = loggerConfiguration.CreateLogger();
             Log.Logger.Information($"Log file is: {Path.Combine(pathToLogFile, "uaedgehems.logfile.txt")}");
         }
-                
+
         private static void ActivateTPKasaSmartDevice(string deviceName, string username, string password, bool activate)
         {
             try

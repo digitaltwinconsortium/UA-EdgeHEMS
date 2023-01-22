@@ -336,8 +336,8 @@ namespace UAEdgeHEMS
                 WeatherInfo weather = JsonConvert.DeserializeObject<WeatherInfo>(responseString);
                 if (weather != null)
                 {
-                    _temperature.Value = weather.main.temp;
-                    _windSpeed.Value = weather.wind.speed;
+                    _temperature.Value = (float)weather.main.temp;
+                    _windSpeed.Value = (float)weather.wind.speed;
                     _cloudCover.Value = weather.weather[0].description;
                 }
             }
@@ -378,19 +378,19 @@ namespace UAEdgeHEMS
                 {
                     if (converter.Body.Data.PAC != null)
                     {
-                        _pvOutputPower.Value = converter.Body.Data.PAC.Value;
+                        _pvOutputPower.Value = (float)converter.Body.Data.PAC.Value;
                     }
                     if (converter.Body.Data.DAY_ENERGY != null)
                     {
-                        _pvOutputEnergyDay.Value = ((double)converter.Body.Data.DAY_ENERGY.Value) / 1000.0;
+                        _pvOutputEnergyDay.Value = ((float)converter.Body.Data.DAY_ENERGY.Value) / 1000.0f;
                     }
                     if (converter.Body.Data.YEAR_ENERGY != null)
                     {
-                        _pvOutputEnergyYear.Value = ((double)converter.Body.Data.YEAR_ENERGY.Value) / 1000.0;
+                        _pvOutputEnergyYear.Value = ((float)converter.Body.Data.YEAR_ENERGY.Value) / 1000.0f;
                     }
                     if (converter.Body.Data.TOTAL_ENERGY != null)
                     {
-                        _pvOutputEnergyTotal.Value = ((double)converter.Body.Data.TOTAL_ENERGY.Value) / 1000.0;
+                        _pvOutputEnergyTotal.Value = ((float)converter.Body.Data.TOTAL_ENERGY.Value) / 1000.0f;
                     }
                 }
             }
@@ -406,9 +406,9 @@ namespace UAEdgeHEMS
                 if (_sml != null)
                 {
                     // read the current smart meter data
-                    _meterEnergyPurchased.Value = _sml.Meter.EnergyPurchased;
-                    _meterEnergySold.Value = _sml.Meter.EnergySold;
-                    _currentPower.Value = _sml.Meter.CurrentPower;
+                    _meterEnergyPurchased.Value = (float)_sml.Meter.EnergyPurchased;
+                    _meterEnergySold.Value = (float)_sml.Meter.EnergySold;
+                    _currentPower.Value = (float)_sml.Meter.CurrentPower;
 
                     _energyCost.Value = (float)_meterEnergyPurchased.Value * KWhCost;
                     _energyProfit.Value = (float)_meterEnergySold.Value * KWhProfit;
@@ -417,10 +417,10 @@ namespace UAEdgeHEMS
                     _meterEnergyConsumed.Value = 0.0f;
                     if (((float)_meterEnergyPurchased.Value != 0.0f)
                         && ((float)_meterEnergySold.Value != 0.0f)
-                        && ((float)_pvOutputEnergyTotal.Value != 0.0))
+                        && ((float)_pvOutputEnergyTotal.Value != 0.0f))
                     {
-                        _meterEnergyConsumed.Value = (float)_pvOutputEnergyTotal.Value + _sml.Meter.EnergyPurchased - _sml.Meter.EnergySold;
-                        _currentPowerConsumed.Value = (float)_pvOutputPower.Value + _sml.Meter.CurrentPower;
+                        _meterEnergyConsumed.Value = (float)_pvOutputEnergyTotal.Value + (float)_sml.Meter.EnergyPurchased - (float)_sml.Meter.EnergySold;
+                        _currentPowerConsumed.Value = (float)_pvOutputPower.Value + (float)_sml.Meter.CurrentPower;
                     }
                 }
                 else
@@ -452,7 +452,7 @@ namespace UAEdgeHEMS
                         ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
                         WallbeWallboxCurrentCurrentSettingAddress,
                         1).GetAwaiter().GetResult()));
-                    _wallboxCurrent.Value = wallbeWallboxCurrentCurrentSetting;
+                    _wallboxCurrent.Value = (float)wallbeWallboxCurrentCurrentSetting;
 
                     OptimizeEVCharging(_wallbox, (float)_currentPower.Value);
                 }

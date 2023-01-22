@@ -1,6 +1,6 @@
 # Home Energy Management System with an OPC UA Server Interface
 
-This Home Energy Management System (HEMS) is an OPC UA Server capturing energy telemetry data from a photovoltaik system and a smart meter and controlling an EV wallbox with the surplus energy available from local production. This is running on Linux on a Raspberry Pi and has a cloud connection to a Microsoft Azure dashboard. 
+This Home Energy Management System (HEMS) is an OPC UA Server capturing energy telemetry data from a photovoltaik system and a smart meter and controlling an EV wallbox with the surplus energy available from local production. This is running in Docker containers (pre-built Intel x64 and ARMx64 containers are available). 
 
 ## Future Extensions
 As a next step, a heat pump will also be managed by the system and (once this is available in 2023) the connected EV battery will be used as an additional energy source during the night via Vechile-to-Home (V2H) leveraging EEBUS (see seperate EEBus.Net repo for a reference implementation).

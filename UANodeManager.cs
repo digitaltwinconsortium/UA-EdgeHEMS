@@ -466,7 +466,7 @@ namespace UAEdgeHEMS
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "EV charing control failed!");
+                Log.Error(ex, "EV charging control failed!");
 
                 // reconnect
                 lock (_wallbox)

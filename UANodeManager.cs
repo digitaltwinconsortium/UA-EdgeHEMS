@@ -45,7 +45,7 @@ namespace UAEdgeHEMS
         private const int WallbeWallboxDesiredCurrentSettingAddress = 528;
         private const int WallbeWallboxEnableChargingFlagAddress = 400;
 
-        private const float KWhCost = 0.3090f;
+        private const float KWhCost = 0.48671f;
         private const float KWhProfit = 0.0944f;
         private const float GridExportPowerLimit = 7000f;
 
@@ -53,19 +53,19 @@ namespace UAEdgeHEMS
 
         private Timer m_timer;
 
-        private SmartMessageLanguage _sml = null;
-        
+        private SmartMessageLanguage _sml;
+
         private ModbusTCPClient _wallbox = new ModbusTCPClient();
 
         private Dictionary<string, BaseDataVariableState> _uaVariables = new();
-        
+
         public UANodeManager(IServerInternal server, ApplicationConfiguration configuration)
         : base(server, configuration)
         {
             SystemContext.NodeIdFactory = this;
 
             List<string> namespaceUris = new List<string>
-            {                                                   // namespace index:
+            {                                                   // namespace indicies (0 and 1 are used by the default UA namespaces):
                 "http://opcfoundation.org/UA/EdgeHEMS/",        // 2
                 "http://opcfoundation.org/UA/SunSpecInverter/", // 3
                 "http://opcfoundation.org/UA/SmartMeter/",      // 4

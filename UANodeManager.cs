@@ -168,7 +168,7 @@ namespace UAEdgeHEMS
                 // create our top-level telemetry folder
                 FolderState telemetryFolder = CreateFolder(null, "Telemetry", NamespaceIndex);
                 telemetryFolder.AddReference(ReferenceTypes.Organizes, true, ObjectIds.ObjectsFolder);
-                references.Add(new NodeStateReference(ReferenceTypes.Organizes, false, controlFolder.NodeId));
+                references.Add(new NodeStateReference(ReferenceTypes.Organizes, false, telemetryFolder.NodeId));
                 telemetryFolder.EventNotifier = EventNotifiers.SubscribeToEvents;
                 AddRootNotifier(telemetryFolder);
 

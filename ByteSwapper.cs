@@ -3,13 +3,79 @@ namespace UAEdgeHEMS
 {
     class ByteSwapper
     {
-        public static ushort ByteSwap(ushort value)
+        public static byte[] Swap(byte[] value, bool swapPerRegister = false)
         {
-            return (ushort)(((value & 0x00FF) << 8) |
-                             ((value & 0xFF00) >> 8));
+            if (value.Length == 2)
+            {
+                byte[] swappedBytes = new byte[2];
+                swappedBytes[0] = value[1];
+                swappedBytes[1] = value[0];
+                return swappedBytes;
+            }
+
+            if (value.Length == 4)
+            {
+                if (swapPerRegister)
+                {
+                    byte[] swappedBytes = new byte[4];
+                    swappedBytes[2] = value[3];
+                    swappedBytes[3] = value[2];
+                    swappedBytes[0] = value[1];
+                    swappedBytes[1] = value[0];
+                    return swappedBytes;
+                }
+                else
+                {
+                    byte[] swappedBytes = new byte[4];
+                    swappedBytes[0] = value[3];
+                    swappedBytes[1] = value[2];
+                    swappedBytes[2] = value[1];
+                    swappedBytes[3] = value[0];
+                    return swappedBytes;
+                }
+            }
+
+            if (value.Length == 8)
+            {
+                if (swapPerRegister)
+                {
+                    byte[] swappedBytes = new byte[8];
+                    swappedBytes[6] = value[7];
+                    swappedBytes[7] = value[6];
+                    swappedBytes[4] = value[5];
+                    swappedBytes[5] = value[4];
+                    swappedBytes[2] = value[3];
+                    swappedBytes[3] = value[2];
+                    swappedBytes[0] = value[1];
+                    swappedBytes[1] = value[0];
+                    return swappedBytes;
+                }
+                else
+                {
+                    byte[] swappedBytes = new byte[8];
+                    swappedBytes[0] = value[7];
+                    swappedBytes[1] = value[6];
+                    swappedBytes[2] = value[5];
+                    swappedBytes[3] = value[4];
+                    swappedBytes[4] = value[3];
+                    swappedBytes[5] = value[2];
+                    swappedBytes[6] = value[1];
+                    swappedBytes[7] = value[0];
+                    return swappedBytes;
+                }
+            }
+
+            // don't swap anything my default
+            return value;
         }
 
-        public static uint ByteSwap(uint value)
+        public static ushort Swap(ushort value)
+        {
+            return (ushort)(((value & 0x00FF) << 8) |
+                            ((value & 0xFF00) >> 8));
+        }
+
+        public static uint Swap(uint value)
         {
             return ((value & 0x000000FF) << 24) |
                    ((value & 0x0000FF00) << 8) |
@@ -17,7 +83,7 @@ namespace UAEdgeHEMS
                    ((value & 0xFF000000) >> 24);
         }
 
-        public static ulong ByteSwap(ulong value)
+        public static ulong Swap(ulong value)
         {
             return ((value & 0x00000000000000FFUL) << 56) |
                    ((value & 0x000000000000FF00UL) << 40) |

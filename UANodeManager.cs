@@ -159,103 +159,132 @@ namespace UAEdgeHEMS
                     externalReferences[ObjectIds.ObjectsFolder] = references = new List<IReference>();
                 }
 
-                // create our top-level control folder
-                FolderState controlFolder = CreateFolder(null, "Control", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/EdgeHEMS/"));
-                controlFolder.AddReference(ReferenceTypes.Organizes, true, ObjectIds.ObjectsFolder);
-                references.Add(new NodeStateReference(ReferenceTypes.Organizes, false, controlFolder.NodeId));
-                controlFolder.EventNotifier = EventNotifiers.SubscribeToEvents;
-                AddRootNotifier(controlFolder);
+                CreateUANodes(references);
 
-                // create our methods
-                MethodState configureAssetMethod = CreateMethod(controlFolder, "IncrementChargingPhases", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/EdgeHEMS/"));
-                configureAssetMethod.OnCallMethod = new GenericMethodCalledEventHandler(IncrementChargingPhases);
-
-                MethodState getAssetsMethod = CreateMethod(controlFolder, "ToggleChargeNow", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/EdgeHEMS/"));
-                getAssetsMethod.OnCallMethod = new GenericMethodCalledEventHandler(ToggleChargeNow);
-
-                // create our top-level PV Inverter folder
-                FolderState inverterFolder = CreateFolder(null, "PVInverter", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SunSpecInverter/"));
-                inverterFolder.AddReference(ReferenceTypes.Organizes, true, ObjectIds.ObjectsFolder);
-                references.Add(new NodeStateReference(ReferenceTypes.Organizes, false, inverterFolder.NodeId));
-                inverterFolder.EventNotifier = EventNotifiers.SubscribeToEvents;
-                AddRootNotifier(inverterFolder);
-
-                // create our top-level Smart Meter folder
-                FolderState smartMeterFolder = CreateFolder(null, "SmartMeter", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SmartMeter/"));
-                smartMeterFolder.AddReference(ReferenceTypes.Organizes, true, ObjectIds.ObjectsFolder);
-                references.Add(new NodeStateReference(ReferenceTypes.Organizes, false, smartMeterFolder.NodeId));
-                smartMeterFolder.EventNotifier = EventNotifiers.SubscribeToEvents;
-                AddRootNotifier(smartMeterFolder);
-
-                // create our top-level Wallbox folder
-                FolderState wallboxFolder = CreateFolder(null, "Wallbox", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Wallbox/"));
-                wallboxFolder.AddReference(ReferenceTypes.Organizes, true, ObjectIds.ObjectsFolder);
-                references.Add(new NodeStateReference(ReferenceTypes.Organizes, false, wallboxFolder.NodeId));
-                wallboxFolder.EventNotifier = EventNotifiers.SubscribeToEvents;
-                AddRootNotifier(wallboxFolder);
-
-                // create our top-level HeatPump folder
-                FolderState heatPumpFolder = CreateFolder(null, "HeatPump", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Heatpump/"));
-                heatPumpFolder.AddReference(ReferenceTypes.Organizes, true, ObjectIds.ObjectsFolder);
-                references.Add(new NodeStateReference(ReferenceTypes.Organizes, false, heatPumpFolder.NodeId));
-                heatPumpFolder.EventNotifier = EventNotifiers.SubscribeToEvents;
-                AddRootNotifier(heatPumpFolder);
-
-                // create our top-level Weather folder
-                FolderState weatherFolder = CreateFolder(null, "Weather", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/OpenWeatherMap/"));
-                weatherFolder.AddReference(ReferenceTypes.Organizes, true, ObjectIds.ObjectsFolder);
-                references.Add(new NodeStateReference(ReferenceTypes.Organizes, false, weatherFolder.NodeId));
-                weatherFolder.EventNotifier = EventNotifiers.SubscribeToEvents;
-                AddRootNotifier(weatherFolder);
-
-                // create our variables
-                 _uaVariables.Add("PVOutputPower", CreateVariable(inverterFolder, "PVOutputPower", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SunSpecInverter/")));
-                _uaVariables.Add("PVOutputEnergyDay", CreateVariable(inverterFolder, "PVOutputEnergyDay", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SunSpecInverter/")));
-                _uaVariables.Add("PVOutputEnergyYear", CreateVariable(inverterFolder, "PVOutputEnergyYear", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SunSpecInverter/")));
-                _uaVariables.Add("PVOutputEnergyTotal", CreateVariable(inverterFolder, "PVOutputEnergyTotal", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SunSpecInverter/")));
-
-                _uaVariables.Add("MeterEnergyPurchased", CreateVariable(smartMeterFolder, "MeterEnergyPurchased", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SmartMeter/")));
-                _uaVariables.Add("MeterEnergySold", CreateVariable(smartMeterFolder, "MeterEnergySold", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SmartMeter/")));
-                _uaVariables.Add("MeterEnergyConsumed", CreateVariable(smartMeterFolder, "MeterEnergyConsumed", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SmartMeter/")));
-                _uaVariables.Add("EnergyCost", CreateVariable(smartMeterFolder, "EnergyCost", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SmartMeter/")));
-                _uaVariables.Add("EnergyProfit", CreateVariable(smartMeterFolder, "EnergyProfit", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SmartMeter/")));
-                _uaVariables.Add("CurrentPower", CreateVariable(smartMeterFolder, "CurrentPower", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SmartMeter/")));
-                _uaVariables.Add("CurrentPowerConsumed", CreateVariable(smartMeterFolder, "CurrentPowerConsumed", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SmartMeter/")));
-
-                _uaVariables.Add("EVChargingInProgress", CreateVariable(wallboxFolder, "EVChargingInProgress", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Wallbox/")));
-                _uaVariables.Add("WallboxCurrent", CreateVariable(wallboxFolder, "WallboxCurrent", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Wallbox/")));
-                _uaVariables.Add("ChargeNow", CreateVariable(wallboxFolder, "ChargeNow", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Wallbox/")));
-                _uaVariables.Add("NumChargingPhases", CreateVariable(wallboxFolder, "NumChargingPhases", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Wallbox/")));
-
-                _uaVariables.Add("HeatPumpCurrentPowerConsumption", CreateVariable(heatPumpFolder, "HeatPumpCurrentPowerConsumption", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Heatpump/")));
-                _uaVariables.Add("HeatPumpOutsideTemp", CreateVariable(heatPumpFolder, "HeatPumpOutsideTemp", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Heatpump/")));
-                _uaVariables.Add("HeatPumpTapWaterTemp", CreateVariable(heatPumpFolder, "HeatPumpTapWaterTemp", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Heatpump/")));
-                _uaVariables.Add("HeatPumpHeatingWaterATemp", CreateVariable(heatPumpFolder, "HeatPumpHeatingWaterATemp", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Heatpump/")));
-                _uaVariables.Add("HeatPumpHeatingWaterBTemp", CreateVariable(heatPumpFolder, "HeatPumpHeatingWaterBTemp", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Heatpump/")));
-                _uaVariables.Add("HeatPumpHeatingWaterCTemp", CreateVariable(heatPumpFolder, "HeatPumpHeatingWaterCTemp", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Heatpump/")));
-
-                _uaVariables.Add("Temperature", CreateVariable(weatherFolder, "Temperature", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/OpenWeatherMap/")));
-                _uaVariables.Add("CloudCover", CreateVariable(weatherFolder, "CloudCover", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/OpenWeatherMap/"), true));
-                _uaVariables.Add("WindSpeed", CreateVariable(weatherFolder, "WindSpeed", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/OpenWeatherMap/")));
-                _uaVariables.Add("CloudinessForecast", CreateVariable(weatherFolder, "CloudinessForecast", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/OpenWeatherMap/"), true));
+                AddReverseReferences(externalReferences);
 
                 // set inital values
                 _uaVariables["ChargeNow"].Value = 0.0f;
                 _uaVariables["NumChargingPhases"].Value = 2.0f;
 
-                // add everyting to our nodeset
-                AddPredefinedNode(SystemContext, controlFolder);
-                AddPredefinedNode(SystemContext, inverterFolder);
-                AddPredefinedNode(SystemContext, smartMeterFolder);
-                AddPredefinedNode(SystemContext, wallboxFolder);
-                AddPredefinedNode(SystemContext, heatPumpFolder);
-                AddPredefinedNode(SystemContext, weatherFolder);
-
-                AddReverseReferences(externalReferences);
-
                 // kick off our variable update timer
                 m_timer = new Timer(UpdateNodeValues, null, 0, 5000);
             }
+        }
+
+        private void UpdateNodeValues(object state)
+        {
+            using (HttpClient webClient = new())
+            {
+                ReadWeatherData(webClient);
+
+                ReadInverterTags(webClient);
+            }
+
+            ReadHeatPumpTags();
+
+            ReadSmartMeterTags();
+
+            ControlSurplusEnergyForHeatPump();
+
+            ControlSmartEVCharging();
+
+            foreach (BaseDataVariableState variable in _uaVariables.Values.ToList())
+            {
+                variable.Timestamp = DateTime.UtcNow;
+                variable.ClearChangeMasks(SystemContext, false);
+            }
+        }
+
+        private void CreateUANodes(IList<IReference> references)
+        {
+            // create our top-level control folder
+            FolderState controlFolder = CreateFolder(null, "Control", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/EdgeHEMS/"));
+            controlFolder.AddReference(ReferenceTypes.Organizes, true, ObjectIds.ObjectsFolder);
+            references.Add(new NodeStateReference(ReferenceTypes.Organizes, false, controlFolder.NodeId));
+            controlFolder.EventNotifier = EventNotifiers.SubscribeToEvents;
+            AddRootNotifier(controlFolder);
+
+            // create our methods
+            MethodState configureAssetMethod = CreateMethod(controlFolder, "IncrementChargingPhases", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/EdgeHEMS/"));
+            configureAssetMethod.OnCallMethod = new GenericMethodCalledEventHandler(IncrementChargingPhases);
+
+            MethodState getAssetsMethod = CreateMethod(controlFolder, "ToggleChargeNow", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/EdgeHEMS/"));
+            getAssetsMethod.OnCallMethod = new GenericMethodCalledEventHandler(ToggleChargeNow);
+
+            // create our top-level PV Inverter folder
+            FolderState inverterFolder = CreateFolder(null, "PVInverter", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SunSpecInverter/"));
+            inverterFolder.AddReference(ReferenceTypes.Organizes, true, ObjectIds.ObjectsFolder);
+            references.Add(new NodeStateReference(ReferenceTypes.Organizes, false, inverterFolder.NodeId));
+            inverterFolder.EventNotifier = EventNotifiers.SubscribeToEvents;
+            AddRootNotifier(inverterFolder);
+
+            // create our top-level Smart Meter folder
+            FolderState smartMeterFolder = CreateFolder(null, "SmartMeter", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SmartMeter/"));
+            smartMeterFolder.AddReference(ReferenceTypes.Organizes, true, ObjectIds.ObjectsFolder);
+            references.Add(new NodeStateReference(ReferenceTypes.Organizes, false, smartMeterFolder.NodeId));
+            smartMeterFolder.EventNotifier = EventNotifiers.SubscribeToEvents;
+            AddRootNotifier(smartMeterFolder);
+
+            // create our top-level Wallbox folder
+            FolderState wallboxFolder = CreateFolder(null, "Wallbox", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Wallbox/"));
+            wallboxFolder.AddReference(ReferenceTypes.Organizes, true, ObjectIds.ObjectsFolder);
+            references.Add(new NodeStateReference(ReferenceTypes.Organizes, false, wallboxFolder.NodeId));
+            wallboxFolder.EventNotifier = EventNotifiers.SubscribeToEvents;
+            AddRootNotifier(wallboxFolder);
+
+            // create our top-level Heat Pump folder
+            FolderState heatPumpFolder = CreateFolder(null, "HeatPump", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Heatpump/"));
+            heatPumpFolder.AddReference(ReferenceTypes.Organizes, true, ObjectIds.ObjectsFolder);
+            references.Add(new NodeStateReference(ReferenceTypes.Organizes, false, heatPumpFolder.NodeId));
+            heatPumpFolder.EventNotifier = EventNotifiers.SubscribeToEvents;
+            AddRootNotifier(heatPumpFolder);
+
+            // create our top-level Weather folder
+            FolderState weatherFolder = CreateFolder(null, "Weather", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/OpenWeatherMap/"));
+            weatherFolder.AddReference(ReferenceTypes.Organizes, true, ObjectIds.ObjectsFolder);
+            references.Add(new NodeStateReference(ReferenceTypes.Organizes, false, weatherFolder.NodeId));
+            weatherFolder.EventNotifier = EventNotifiers.SubscribeToEvents;
+            AddRootNotifier(weatherFolder);
+
+            // create our variables
+            _uaVariables.Add("PVOutputPower", CreateVariable(inverterFolder, "PVOutputPower", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SunSpecInverter/")));
+            _uaVariables.Add("PVOutputEnergyDay", CreateVariable(inverterFolder, "PVOutputEnergyDay", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SunSpecInverter/")));
+            _uaVariables.Add("PVOutputEnergyYear", CreateVariable(inverterFolder, "PVOutputEnergyYear", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SunSpecInverter/")));
+            _uaVariables.Add("PVOutputEnergyTotal", CreateVariable(inverterFolder, "PVOutputEnergyTotal", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SunSpecInverter/")));
+
+            _uaVariables.Add("MeterEnergyPurchased", CreateVariable(smartMeterFolder, "MeterEnergyPurchased", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SmartMeter/")));
+            _uaVariables.Add("MeterEnergySold", CreateVariable(smartMeterFolder, "MeterEnergySold", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SmartMeter/")));
+            _uaVariables.Add("MeterEnergyConsumed", CreateVariable(smartMeterFolder, "MeterEnergyConsumed", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SmartMeter/")));
+            _uaVariables.Add("EnergyCost", CreateVariable(smartMeterFolder, "EnergyCost", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SmartMeter/")));
+            _uaVariables.Add("EnergyProfit", CreateVariable(smartMeterFolder, "EnergyProfit", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SmartMeter/")));
+            _uaVariables.Add("CurrentPower", CreateVariable(smartMeterFolder, "CurrentPower", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SmartMeter/")));
+            _uaVariables.Add("CurrentPowerConsumed", CreateVariable(smartMeterFolder, "CurrentPowerConsumed", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SmartMeter/")));
+
+            _uaVariables.Add("EVChargingInProgress", CreateVariable(wallboxFolder, "EVChargingInProgress", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Wallbox/")));
+            _uaVariables.Add("WallboxCurrent", CreateVariable(wallboxFolder, "WallboxCurrent", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Wallbox/")));
+            _uaVariables.Add("ChargeNow", CreateVariable(wallboxFolder, "ChargeNow", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Wallbox/")));
+            _uaVariables.Add("NumChargingPhases", CreateVariable(wallboxFolder, "NumChargingPhases", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Wallbox/")));
+
+            _uaVariables.Add("HeatPumpCurrentPowerConsumption", CreateVariable(heatPumpFolder, "HeatPumpCurrentPowerConsumption", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Heatpump/")));
+            _uaVariables.Add("HeatPumpOutsideTemp", CreateVariable(heatPumpFolder, "HeatPumpOutsideTemp", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Heatpump/")));
+            _uaVariables.Add("HeatPumpTapWaterTemp", CreateVariable(heatPumpFolder, "HeatPumpTapWaterTemp", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Heatpump/")));
+            _uaVariables.Add("HeatPumpHeatingWaterATemp", CreateVariable(heatPumpFolder, "HeatPumpHeatingWaterATemp", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Heatpump/")));
+            _uaVariables.Add("HeatPumpHeatingWaterBTemp", CreateVariable(heatPumpFolder, "HeatPumpHeatingWaterBTemp", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Heatpump/")));
+            _uaVariables.Add("HeatPumpHeatingWaterCTemp", CreateVariable(heatPumpFolder, "HeatPumpHeatingWaterCTemp", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Heatpump/")));
+
+            _uaVariables.Add("Temperature", CreateVariable(weatherFolder, "Temperature", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/OpenWeatherMap/")));
+            _uaVariables.Add("CloudCover", CreateVariable(weatherFolder, "CloudCover", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/OpenWeatherMap/"), true));
+            _uaVariables.Add("WindSpeed", CreateVariable(weatherFolder, "WindSpeed", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/OpenWeatherMap/")));
+            _uaVariables.Add("CloudinessForecast", CreateVariable(weatherFolder, "CloudinessForecast", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/OpenWeatherMap/"), true));
+
+            // add everyting to our nodeset
+            AddPredefinedNode(SystemContext, controlFolder);
+            AddPredefinedNode(SystemContext, inverterFolder);
+            AddPredefinedNode(SystemContext, smartMeterFolder);
+            AddPredefinedNode(SystemContext, wallboxFolder);
+            AddPredefinedNode(SystemContext, heatPumpFolder);
+            AddPredefinedNode(SystemContext, weatherFolder);
         }
 
         private PropertyState<Argument[]> CreateInputArguments(NodeState parent, string name, string description)
@@ -370,184 +399,8 @@ namespace UAEdgeHEMS
             return ServiceResult.Good;
         }
 
-        private void UpdateNodeValues(object state)
+        private void ControlSmartEVCharging()
         {
-            HttpClient webClient = new();
-
-            try
-            {
-                // read the heat pump registers
-                _uaVariables["HeatPumpOutsideTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
-                    IDMHeatPumpModbusUnitID,
-                    ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                    IDMHeatPumpOutsideTemp,
-                    2).GetAwaiter().GetResult(), true));
-
-                _uaVariables["HeatPumpHeatingWaterATemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
-                    IDMHeatPumpModbusUnitID,
-                    ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                    IDMHeatPumpHeatingWaterATemp,
-                    2).GetAwaiter().GetResult(), true));
-
-                _uaVariables["HeatPumpHeatingWaterBTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
-                    IDMHeatPumpModbusUnitID,
-                    ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                    IDMHeatPumpHeatingWaterBTemp,
-                    2).GetAwaiter().GetResult(), true));
-
-                _uaVariables["HeatPumpHeatingWaterCTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
-                   IDMHeatPumpModbusUnitID,
-                   ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                   IDMHeatPumpHeatingWaterCTemp,
-                   2).GetAwaiter().GetResult(), true));
-
-                _uaVariables["HeatPumpTapWaterTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
-                   IDMHeatPumpModbusUnitID,
-                   ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                   IDMHeatPumpTapWaterTemp,
-                   2).GetAwaiter().GetResult(), true));
-
-                _uaVariables["HeatPumpCurrentPowerConsumption"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
-                    IDMHeatPumpModbusUnitID,
-                    ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                    IDMHeatPumpCurrentPowerConsumption,
-                    2).GetAwaiter().GetResult(), true));
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Communicating with heat pump failed!");
-            }
-
-            try
-            {
-                // read the current weather data from web service
-                string address = "https://api.openweathermap.org/data/2.5/weather?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b";
-                HttpResponseMessage response = webClient.Send(new HttpRequestMessage(HttpMethod.Get, address));
-                string responseString = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-                WeatherInfo weather = JsonConvert.DeserializeObject<WeatherInfo>(responseString);
-                if (weather != null)
-                {
-                    _uaVariables["Temperature"].Value = (float)weather.main.temp;
-                    _uaVariables["WindSpeed"].Value = (float)weather.wind.speed;
-                    _uaVariables["CloudCover"].Value = weather.weather[0].description;
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Getting weather data failed!");
-            }
-
-            try
-            {
-                // read the current forecast data from web service
-                string address = "https://api.openweathermap.org/data/2.5/forecast?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b";
-                HttpResponseMessage response = webClient.Send(new HttpRequestMessage(HttpMethod.Get, address));
-                string responseString = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-                Forecast forecast = JsonConvert.DeserializeObject<Forecast>(responseString);
-                if (forecast != null && forecast.list != null && forecast.list.Count == 40)
-                {
-                    _uaVariables["CloudinessForecast"].Value = string.Empty;
-                    for (int i = 0; i < 40; i++)
-                    {
-                        _uaVariables["CloudinessForecast"].Value = (string)_uaVariables["CloudinessForecast"].Value + "Cloudiness on " + forecast.list[i].dt_txt + ": " + forecast.list[i].clouds.all + "%\r\n";
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Getting weather forecast failed!");
-            }
-
-            try
-            {
-                // read the current converter data from web service
-                string address = "http://" + FroniusInverterBaseAddress + "/solar_api/v1/GetInverterRealtimeData.cgi?Scope=Device&DeviceID=1&DataCollection=CommonInverterData";
-                HttpResponseMessage response = webClient.Send(new HttpRequestMessage(HttpMethod.Get, address));
-                string responseString = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-                DCACConverter converter = JsonConvert.DeserializeObject<DCACConverter>(responseString);
-                if (converter != null)
-                {
-                    if (converter.Body.Data.PAC != null)
-                    {
-                        _uaVariables["PVOutputPower"].Value = (float)converter.Body.Data.PAC.Value;
-                    }
-                    if (converter.Body.Data.DAY_ENERGY != null)
-                    {
-                        _uaVariables["PVOutputEnergyDay"].Value = ((float)converter.Body.Data.DAY_ENERGY.Value) / 1000.0f;
-                    }
-                    if (converter.Body.Data.YEAR_ENERGY != null)
-                    {
-                        _uaVariables["PVOutputEnergyYear"].Value = ((float)converter.Body.Data.YEAR_ENERGY.Value) / 1000.0f;
-                    }
-                    if (converter.Body.Data.TOTAL_ENERGY != null)
-                    {
-                        _uaVariables["PVOutputEnergyTotal"].Value = ((float)converter.Body.Data.TOTAL_ENERGY.Value) / 1000.0f;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Getting converter data failed!");
-            }
-
-            webClient.Dispose();
-
-            try
-            {
-                if (_sml != null)
-                {
-                    // read the current smart meter data
-                    _uaVariables["MeterEnergyPurchased"].Value = (float)_sml.Meter.EnergyPurchased;
-                    _uaVariables["MeterEnergySold"].Value = (float)_sml.Meter.EnergySold;
-                    _uaVariables["CurrentPower"].Value = (float)_sml.Meter.CurrentPower;
-
-                    _uaVariables["EnergyCost"].Value = (float)_uaVariables["MeterEnergyPurchased"].Value * KWhCost;
-                    _uaVariables["EnergyProfit"].Value = (float)_uaVariables["MeterEnergySold"].Value * KWhProfit;
-
-                    // calculate energy consumed from the other telemetry, if available
-                    _uaVariables["MeterEnergyConsumed"].Value = 0.0f;
-                    if (((float)_uaVariables["MeterEnergyPurchased"].Value != 0.0f)
-                        && ((float)_uaVariables["MeterEnergySold"].Value != 0.0f)
-                        && ((float)_uaVariables["PVOutputEnergyTotal"].Value != 0.0f))
-                    {
-                        _uaVariables["MeterEnergyConsumed"].Value = (float)_uaVariables["PVOutputEnergyTotal"].Value + (float)_sml.Meter.EnergyPurchased - (float)_sml.Meter.EnergySold;
-                        _uaVariables["CurrentPowerConsumed"].Value = (float)_uaVariables["PVOutputPower"].Value + (float)_sml.Meter.CurrentPower;
-                    }
-
-                    // set the surplus for our heatpump in kW
-                    float surplus = 0.0f;
-                    if (_sml.Meter.CurrentPower < 0)
-                    {
-                        surplus = (float)_sml.Meter.CurrentPower / -1000.0f;
-                    }
-
-                    byte[] buffer = new byte[4];
-                    BitConverter.TryWriteBytes(buffer, surplus);
-                    ushort[] registers = new ushort[2];
-                    registers[0] = (ushort)(buffer[1] << 8 | buffer[0]);
-                    registers[1] = (ushort)(buffer[3] << 8 | buffer[2]);
-
-                    _heatPump.WriteHoldingRegisters(
-                        IDMHeatPumpModbusUnitID,
-                        IDMHeatPumpPVSurplus,
-                        registers).GetAwaiter().GetResult();
-                }
-                else
-                {
-                    _uaVariables["MeterEnergyPurchased"].Value = 0.0f;
-                    _uaVariables["MeterEnergySold"].Value = 0.0f;
-                    _uaVariables["CurrentPower"].Value = 0.0f;
-                    _uaVariables["EnergyCost"].Value = 0.0f;
-                    _uaVariables["EnergyProfit"].Value = 0.0f;
-                    _uaVariables["MeterEnergyConsumed"].Value = 0.0f;
-                    _uaVariables["CurrentPowerConsumed"].Value = 0.0f;
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Getting smart meter data failed!");
-            }
-
             try
             {
                 lock (_wallbox)
@@ -591,11 +444,199 @@ namespace UAEdgeHEMS
                     _wallbox.Connect(WallbeWallboxBaseAddress, WallbeWallboxModbusTCPPort);
                 }
             }
+        }
 
-            foreach (BaseDataVariableState variable in _uaVariables.Values.ToList())
+        private void ReadSmartMeterTags()
+        {
+            try
             {
-                variable.Timestamp = DateTime.UtcNow;
-                variable.ClearChangeMasks(SystemContext, false);
+                if (_sml != null)
+                {
+                    // read the current smart meter data
+                    _uaVariables["MeterEnergyPurchased"].Value = (float)_sml.Meter.EnergyPurchased;
+                    _uaVariables["MeterEnergySold"].Value = (float)_sml.Meter.EnergySold;
+                    _uaVariables["CurrentPower"].Value = (float)_sml.Meter.CurrentPower;
+
+                    _uaVariables["EnergyCost"].Value = (float)_uaVariables["MeterEnergyPurchased"].Value * KWhCost;
+                    _uaVariables["EnergyProfit"].Value = (float)_uaVariables["MeterEnergySold"].Value * KWhProfit;
+
+                    // calculate energy consumed from the other telemetry, if available
+                    _uaVariables["MeterEnergyConsumed"].Value = 0.0f;
+                    if (((float)_uaVariables["MeterEnergyPurchased"].Value != 0.0f)
+                        && ((float)_uaVariables["MeterEnergySold"].Value != 0.0f)
+                        && ((float)_uaVariables["PVOutputEnergyTotal"].Value != 0.0f))
+                    {
+                        _uaVariables["MeterEnergyConsumed"].Value = (float)_uaVariables["PVOutputEnergyTotal"].Value + (float)_sml.Meter.EnergyPurchased - (float)_sml.Meter.EnergySold;
+                        _uaVariables["CurrentPowerConsumed"].Value = (float)_uaVariables["PVOutputPower"].Value + (float)_sml.Meter.CurrentPower;
+                    }
+                }
+                else
+                {
+                    _uaVariables["MeterEnergyPurchased"].Value = 0.0f;
+                    _uaVariables["MeterEnergySold"].Value = 0.0f;
+                    _uaVariables["CurrentPower"].Value = 0.0f;
+                    _uaVariables["EnergyCost"].Value = 0.0f;
+                    _uaVariables["EnergyProfit"].Value = 0.0f;
+                    _uaVariables["MeterEnergyConsumed"].Value = 0.0f;
+                    _uaVariables["CurrentPowerConsumed"].Value = 0.0f;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Getting smart meter data failed!");
+            }
+        }
+
+        private void ControlSurplusEnergyForHeatPump()
+        {
+            try
+            {
+                // set the surplus for our heatpump in kW
+                float surplus = 0.0f;
+                if (_sml?.Meter.CurrentPower < 0)
+                {
+                    surplus = (float)_sml.Meter.CurrentPower / -1000.0f;
+                }
+
+                byte[] buffer = new byte[4];
+                BitConverter.TryWriteBytes(buffer, surplus);
+                ushort[] registers = new ushort[2];
+                registers[0] = (ushort)(buffer[1] << 8 | buffer[0]);
+                registers[1] = (ushort)(buffer[3] << 8 | buffer[2]);
+
+                _heatPump.WriteHoldingRegisters(
+                    IDMHeatPumpModbusUnitID,
+                    IDMHeatPumpPVSurplus,
+                    registers).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Surplus energy control failed!");
+            }
+        }
+
+        private void ReadInverterTags(HttpClient webClient)
+        {
+            try
+            {
+                // read the current converter data from web service
+                string address = "http://" + FroniusInverterBaseAddress + "/solar_api/v1/GetInverterRealtimeData.cgi?Scope=Device&DeviceID=1&DataCollection=CommonInverterData";
+                HttpResponseMessage response = webClient.Send(new HttpRequestMessage(HttpMethod.Get, address));
+                string responseString = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                DCACConverter converter = JsonConvert.DeserializeObject<DCACConverter>(responseString);
+                if (converter != null)
+                {
+                    if (converter.Body.Data.PAC != null)
+                    {
+                        _uaVariables["PVOutputPower"].Value = (float)converter.Body.Data.PAC.Value;
+                    }
+                    if (converter.Body.Data.DAY_ENERGY != null)
+                    {
+                        _uaVariables["PVOutputEnergyDay"].Value = ((float)converter.Body.Data.DAY_ENERGY.Value) / 1000.0f;
+                    }
+                    if (converter.Body.Data.YEAR_ENERGY != null)
+                    {
+                        _uaVariables["PVOutputEnergyYear"].Value = ((float)converter.Body.Data.YEAR_ENERGY.Value) / 1000.0f;
+                    }
+                    if (converter.Body.Data.TOTAL_ENERGY != null)
+                    {
+                        _uaVariables["PVOutputEnergyTotal"].Value = ((float)converter.Body.Data.TOTAL_ENERGY.Value) / 1000.0f;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Getting converter data failed!");
+            }
+        }
+
+        private void ReadWeatherData(HttpClient webClient)
+        {
+            try
+            {
+                // read the current weather data from web service
+                string address = "https://api.openweathermap.org/data/2.5/weather?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b";
+                HttpResponseMessage response = webClient.Send(new HttpRequestMessage(HttpMethod.Get, address));
+                string responseString = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                WeatherInfo weather = JsonConvert.DeserializeObject<WeatherInfo>(responseString);
+                if (weather != null)
+                {
+                    _uaVariables["Temperature"].Value = (float)weather.main.temp;
+                    _uaVariables["WindSpeed"].Value = (float)weather.wind.speed;
+                    _uaVariables["CloudCover"].Value = weather.weather[0].description;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Getting weather data failed!");
+            }
+
+            try
+            {
+                // read the current forecast data from web service
+                string address = "https://api.openweathermap.org/data/2.5/forecast?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b";
+                HttpResponseMessage response = webClient.Send(new HttpRequestMessage(HttpMethod.Get, address));
+                string responseString = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                Forecast forecast = JsonConvert.DeserializeObject<Forecast>(responseString);
+                if (forecast != null && forecast.list != null && forecast.list.Count == 40)
+                {
+                    _uaVariables["CloudinessForecast"].Value = string.Empty;
+                    for (int i = 0; i < 40; i++)
+                    {
+                        _uaVariables["CloudinessForecast"].Value = (string)_uaVariables["CloudinessForecast"].Value + "Cloudiness on " + forecast.list[i].dt_txt + ": " + forecast.list[i].clouds.all + "%\r\n";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Getting weather forecast failed!");
+            }
+        }
+
+        private void ReadHeatPumpTags()
+        {
+            try
+            {
+                // read the heat pump registers
+                _uaVariables["HeatPumpOutsideTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
+                    IDMHeatPumpModbusUnitID,
+                    ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                    IDMHeatPumpOutsideTemp,
+                    2).GetAwaiter().GetResult(), true));
+
+                _uaVariables["HeatPumpHeatingWaterATemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
+                    IDMHeatPumpModbusUnitID,
+                    ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                    IDMHeatPumpHeatingWaterATemp,
+                    2).GetAwaiter().GetResult(), true));
+
+                _uaVariables["HeatPumpHeatingWaterBTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
+                    IDMHeatPumpModbusUnitID,
+                    ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                    IDMHeatPumpHeatingWaterBTemp,
+                    2).GetAwaiter().GetResult(), true));
+
+                _uaVariables["HeatPumpHeatingWaterCTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
+                   IDMHeatPumpModbusUnitID,
+                   ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                   IDMHeatPumpHeatingWaterCTemp,
+                   2).GetAwaiter().GetResult(), true));
+
+                _uaVariables["HeatPumpTapWaterTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
+                   IDMHeatPumpModbusUnitID,
+                   ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                   IDMHeatPumpTapWaterTemp,
+                   2).GetAwaiter().GetResult(), true));
+
+                _uaVariables["HeatPumpCurrentPowerConsumption"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
+                    IDMHeatPumpModbusUnitID,
+                    ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                    IDMHeatPumpCurrentPowerConsumption,
+                    2).GetAwaiter().GetResult(), true));
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Communicating with heat pump failed!");
             }
         }
 

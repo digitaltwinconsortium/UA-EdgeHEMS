@@ -169,7 +169,7 @@ namespace UAEdgeHEMS
             }
 
             // kick off our variable update timer
-            m_timer = new Timer(UpdateNodeValues, null, 5000, 5000);
+            m_timer = new Timer(UpdateNodeValues, null, 1000, 5000);
         }
 
         private void UpdateNodeValues(object state)

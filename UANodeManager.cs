@@ -166,10 +166,10 @@ namespace UAEdgeHEMS
                 // set inital values
                 _uaVariables["ChargeNow"].Value = 0.0f;
                 _uaVariables["NumChargingPhases"].Value = 2.0f;
-
-                // kick off our variable update timer
-                m_timer = new Timer(UpdateNodeValues, null, 0, 5000);
             }
+
+            // kick off our variable update timer
+            m_timer = new Timer(UpdateNodeValues, null, 5000, 5000);
         }
 
         private void UpdateNodeValues(object state)

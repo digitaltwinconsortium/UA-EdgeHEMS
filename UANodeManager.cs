@@ -171,6 +171,8 @@ namespace UAEdgeHEMS
                 // set inital values
                 _uaVariables["ChargeNow"].Value = 0.0f;
                 _uaVariables["NumChargingPhases"].Value = 2.0f;
+                _uaVariables["PVOutputEnergyTotal"].Value = 0.0f;
+                _uaVariables["PVOutputPower"].Value = 0.0f;
             }
 
             // kick off our timers

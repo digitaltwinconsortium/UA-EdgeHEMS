@@ -7,8 +7,8 @@ namespace UAEdgeHEMS
     using Opc.Ua.Configuration;
     using Serilog;
     using System;
+    using System.Globalization;
     using System.IO;
-    using System.Net;
     using System.Net.Http;
     using System.Text;
     using System.Threading;
@@ -16,6 +16,8 @@ namespace UAEdgeHEMS
 
     class Program
     {
+        static ApplicationInstance App { get; set; }
+
          static async Task Main(string[] args)
         {
             // setup logging
@@ -34,22 +36,25 @@ namespace UAEdgeHEMS
             }
 
             ApplicationInstance.MessageDlg = new ApplicationMessageDlg();
-            ApplicationInstance app = new ApplicationInstance
+            App = new ApplicationInstance
             {
                 ApplicationName = appName,
                 ApplicationType = ApplicationType.Server,
                 ConfigSectionName = "Ua.Edge.HEMS"
             };
 
-            await app.LoadApplicationConfiguration(false).ConfigureAwait(false);
-            await app.CheckApplicationInstanceCertificate(false, 0).ConfigureAwait(false);
+            await App.LoadApplicationConfiguration(false).ConfigureAwait(false);
+
+            await App.CheckApplicationInstanceCertificate(false, 0).ConfigureAwait(false);
+
+            Utils.Tracing.TraceEventHandler += new EventHandler<TraceEventArgs>(OpcStackLoggingHandler);
 
             // create OPC UA cert validator
-            app.ApplicationConfiguration.CertificateValidator = new CertificateValidator();
-            app.ApplicationConfiguration.CertificateValidator.CertificateValidation += new CertificateValidationEventHandler(OPCUAClientCertificateValidationCallback);
+            App.ApplicationConfiguration.CertificateValidator = new CertificateValidator();
+            App.ApplicationConfiguration.CertificateValidator.CertificateValidation += new CertificateValidationEventHandler(OPCUAClientCertificateValidationCallback);
 
             // start the server
-            await app.Start(new UAServer()).ConfigureAwait(false);
+            await App.Start(new UAServer()).ConfigureAwait(false);
 
             Log.Logger.Information("UA Edge HEMS is running.");
             await Task.Delay(Timeout.Infinite).ConfigureAwait(false);
@@ -61,6 +66,21 @@ namespace UAEdgeHEMS
             if (e.Error.StatusCode == StatusCodes.BadCertificateUntrusted)
             {
                 e.Accept = true;
+            }
+        }
+
+        private static void OpcStackLoggingHandler(object sender, TraceEventArgs e)
+        {
+            if ((e.TraceMask & App.ApplicationConfiguration.TraceConfiguration.TraceMasks) != 0)
+            {
+                if (e.Arguments != null)
+                {
+                    Log.Logger.Information("OPC UA Stack: " + string.Format(CultureInfo.InvariantCulture, e.Format, e.Arguments).Trim());
+                }
+                else
+                {
+                    Log.Logger.Information("OPC UA Stack: " + e.Format.Trim());
+                }
             }
         }
 

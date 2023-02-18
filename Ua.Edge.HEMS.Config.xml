@@ -141,7 +141,7 @@
   </Extensions>
 
   <TraceConfiguration>
-    <OutputFilePath>../Logs/Opc.Ua.EdgeHEMS.logfile.txt</OutputFilePath>
+    <OutputFilePath>Opc.Ua.EdgeHEMS.logfile.txt</OutputFilePath>
     <DeleteOnLoad>true</DeleteOnLoad>
     <!--
       Masks supported by the trace feature.

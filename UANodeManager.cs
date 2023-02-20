@@ -37,6 +37,7 @@ namespace UAEdgeHEMS
         private const int IDMHeatPumpCurrentPowerConsumption = 4122;
         private const int IDMHeatPumpOutsideTemp = 1000;
         private const int IDMHeatPumpTapWaterTemp = 1014;
+        private const int IDMHeatPumpMode = 1090;
         private const int IDMHeatPumpHeatingWaterATemp = 1350;
         private const int IDMHeatPumpHeatingWaterBTemp = 1352;
         private const int IDMHeatPumpHeatingWaterCTemp = 1354;
@@ -171,8 +172,11 @@ namespace UAEdgeHEMS
                 // set inital values
                 _uaVariables["ChargeNow"].Value = 0.0f;
                 _uaVariables["NumChargingPhases"].Value = 2.0f;
+                _uaVariables["CurrentPower"].Value = 0.0f;
                 _uaVariables["PVOutputEnergyTotal"].Value = 0.0f;
                 _uaVariables["PVOutputPower"].Value = 0.0f;
+                _uaVariables["HeatPumpCurrentPowerConsumption"].Value = 0.0f;
+                _uaVariables["HeatPumpMode"].Value = 0.0f;
             }
 
             // kick off our timers
@@ -260,6 +264,7 @@ namespace UAEdgeHEMS
             _uaVariables.Add("HeatPumpHeatingWaterATemp", CreateVariable(heatPumpFolder, "HeatPumpHeatingWaterATemp", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Heatpump/")));
             _uaVariables.Add("HeatPumpHeatingWaterBTemp", CreateVariable(heatPumpFolder, "HeatPumpHeatingWaterBTemp", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Heatpump/")));
             _uaVariables.Add("HeatPumpHeatingWaterCTemp", CreateVariable(heatPumpFolder, "HeatPumpHeatingWaterCTemp", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Heatpump/")));
+            _uaVariables.Add("HeatPumpMode", CreateVariable(heatPumpFolder, "HeatPumpMode", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/Heatpump/")));
 
             _uaVariables.Add("Temperature", CreateVariable(weatherFolder, "Temperature", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/OpenWeatherMap/")));
             _uaVariables.Add("CloudCover", CreateVariable(weatherFolder, "CloudCover", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/OpenWeatherMap/"), true));
@@ -501,26 +506,34 @@ namespace UAEdgeHEMS
             try
             {
                 // set the surplus for our heatpump in kW
-                float surplus = 0.0f;
-                if (_sml?.Meter.CurrentPower < 0)
+                float surplusPowerKW = -((float)_uaVariables["CurrentPower"].Value / 1000.0f);
+                float heatPumpPowerRequirementKW = (float)_uaVariables["HeatPumpCurrentPowerConsumption"].Value;
+                bool heatPumpRunning = (float)_uaVariables["HeatPumpMode"].Value != 0.0f; // 0 = heat pump is off
+
+                // if the heat pump is already running, we need to add the heat pump power requirements to the surplus,
+                // as the heat pump power requirements will already be part of the measurement by our smart meter!
+                if (heatPumpRunning)
                 {
-                    surplus = (float)_sml.Meter.CurrentPower / -1000.0f;
+                    surplusPowerKW += heatPumpPowerRequirementKW;
                 }
 
-                byte[] buffer = new byte[4];
-                BitConverter.TryWriteBytes(buffer, surplus);
-                ushort[] registers = new ushort[2];
-                registers[0] = (ushort)(buffer[1] << 8 | buffer[0]);
-                registers[1] = (ushort)(buffer[3] << 8 | buffer[2]);
+                if (surplusPowerKW > heatPumpPowerRequirementKW)
+                {
+                    byte[] buffer = new byte[4];
+                    BitConverter.TryWriteBytes(buffer, surplusPowerKW);
+                    ushort[] registers = new ushort[2];
+                    registers[0] = (ushort)(buffer[1] << 8 | buffer[0]);
+                    registers[1] = (ushort)(buffer[3] << 8 | buffer[2]);
 
-                _heatPump.WriteHoldingRegisters(
-                    IDMHeatPumpModbusUnitID,
-                    IDMHeatPumpPVSurplus,
-                    registers).GetAwaiter().GetResult();
+                    _heatPump.WriteHoldingRegisters(
+                        IDMHeatPumpModbusUnitID,
+                        IDMHeatPumpPVSurplus,
+                        registers).GetAwaiter().GetResult();
+                }
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Surplus energy control failed!");
+                Log.Error(ex, "Surplus energy control for heat pump failed!");
             }
         }
 
@@ -688,6 +701,15 @@ namespace UAEdgeHEMS
 
                 _uaVariables["HeatPumpCurrentPowerConsumption"].Timestamp = DateTime.UtcNow;
                 _uaVariables["HeatPumpCurrentPowerConsumption"].ClearChangeMasks(SystemContext, false);
+
+                _uaVariables["HeatPumpMode"].Value = (float)BitConverter.ToUInt16(ByteSwapper.Swap(_heatPump.Read(
+                   IDMHeatPumpModbusUnitID,
+                   ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                   IDMHeatPumpMode,
+                   1).GetAwaiter().GetResult(), true));
+
+                _uaVariables["HeatPumpMode"].Timestamp = DateTime.UtcNow;
+                _uaVariables["HeatPumpMode"].ClearChangeMasks(SystemContext, false);
             }
             catch (Exception ex)
             {

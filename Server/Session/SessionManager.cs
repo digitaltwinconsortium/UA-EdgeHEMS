@@ -282,6 +282,8 @@ namespace Opc.Ua.Server
                 // check if session timeout has expired.
                 if (session.HasExpired)
                 {
+                    Utils.LogError("Activate Session: Session has expired!");
+
                     // raise audit event for session closed because of timeout
                     m_server.ReportAuditCloseSessionEvent(null, session, "Session/Timeout");
 
@@ -596,6 +598,8 @@ namespace Opc.Ua.Server
                             {
                                 m_server.ServerDiagnostics.SessionTimeoutCount++;
                             }
+
+                            Utils.LogError("Monitor Session: Session has expired!");
 
                             // raise audit event for session closed because of timeout
                             m_server.ReportAuditCloseSessionEvent(null, sessions[ii], "Session/Timeout");

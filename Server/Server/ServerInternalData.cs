@@ -482,11 +482,11 @@ namespace Opc.Ua.Server
         /// <param name="deleteSubscriptions">if set to <c>true</c> subscriptions are to be deleted.</param>
         public void CloseSession(OperationContext context, NodeId sessionId, bool deleteSubscriptions)
         {
-            Log.Logger.Error(new Exception("Session closing!"), "Session closing!");
-
             m_nodeManager.SessionClosing(context, sessionId, deleteSubscriptions);
             m_subscriptionManager.SessionClosing(context, sessionId, deleteSubscriptions);
             m_sessionManager.CloseSession(sessionId);
+
+            throw new Exception("Session closing!");
         }
 
         /// <summary>

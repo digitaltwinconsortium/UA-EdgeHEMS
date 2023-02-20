@@ -338,6 +338,10 @@ namespace Opc.Ua.Server
                 {
                     if (m_diagnostics.ClientLastContactTime.AddMilliseconds(m_diagnostics.ActualSessionTimeout) < DateTime.UtcNow)
                     {
+                        Utils.LogError("Client last contact time: " + m_diagnostics.ClientLastContactTime.ToString());
+                        Utils.LogError("Actual Session Timeout: " + m_diagnostics.ActualSessionTimeout.ToString());
+                        Utils.LogError("UTC now: " + DateTime.UtcNow.ToString());
+
                         return true;
                     }
 

@@ -157,7 +157,7 @@
       ExternalSystem = 0x100;
       Security = 0x200;
     -->
-    <TraceMasks>1023</TraceMasks>
+    <TraceMasks>1</TraceMasks>
   </TraceConfiguration>
 
   <!-- Disables the hi-res clock if the QueryPerformanceCounter does work on a particular machine. -->

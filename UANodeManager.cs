@@ -508,15 +508,6 @@ namespace UAEdgeHEMS
                 // set the surplus for our heatpump in kW
                 float surplusPowerKW = -((float)_uaVariables["CurrentPower"].Value / 1000.0f);
                 float heatPumpPowerRequirementKW = (float)_uaVariables["HeatPumpCurrentPowerConsumption"].Value;
-                bool heatPumpRunning = (float)_uaVariables["HeatPumpMode"].Value != 0.0f; // 0 = heat pump is off
-
-                // if the heat pump is already running, we need to add the heat pump power requirements to the surplus,
-                // as the heat pump power requirements will already be part of the measurement by our smart meter!
-                if (heatPumpRunning)
-                {
-                    surplusPowerKW += heatPumpPowerRequirementKW;
-                }
-
                 if (surplusPowerKW > heatPumpPowerRequirementKW)
                 {
                     byte[] buffer = new byte[4];

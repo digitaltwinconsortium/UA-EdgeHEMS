@@ -485,8 +485,6 @@ namespace Opc.Ua.Server
             m_nodeManager.SessionClosing(context, sessionId, deleteSubscriptions);
             m_subscriptionManager.SessionClosing(context, sessionId, deleteSubscriptions);
             m_sessionManager.CloseSession(sessionId);
-
-            throw new Exception("Session closing!");
         }
 
         /// <summary>

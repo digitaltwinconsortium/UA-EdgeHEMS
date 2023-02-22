@@ -9,10 +9,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="Ua.Edge.HEMS.Config.xml" />
-  </ItemGroup>
-
-  <ItemGroup>
     <Content Include="Ua.Edge.HEMS.Config.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

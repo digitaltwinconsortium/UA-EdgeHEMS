@@ -648,7 +648,7 @@ namespace UAEdgeHEMS
                 _uaVariables["HeatPumpOutsideTemp"].Timestamp = DateTime.UtcNow;
                 _uaVariables["HeatPumpOutsideTemp"].ClearChangeMasks(SystemContext, false);
 
-                Thread.Sleep(100);
+                Thread.Sleep(250);
 
                 _uaVariables["HeatPumpHeatingWaterATemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
                     IDMHeatPumpModbusUnitID,
@@ -659,7 +659,7 @@ namespace UAEdgeHEMS
                 _uaVariables["HeatPumpHeatingWaterATemp"].Timestamp = DateTime.UtcNow;
                 _uaVariables["HeatPumpHeatingWaterATemp"].ClearChangeMasks(SystemContext, false);
 
-                Thread.Sleep(100);
+                Thread.Sleep(250);
 
                 _uaVariables["HeatPumpHeatingWaterBTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
                     IDMHeatPumpModbusUnitID,
@@ -670,7 +670,7 @@ namespace UAEdgeHEMS
                 _uaVariables["HeatPumpHeatingWaterBTemp"].Timestamp = DateTime.UtcNow;
                 _uaVariables["HeatPumpHeatingWaterBTemp"].ClearChangeMasks(SystemContext, false);
 
-                Thread.Sleep(100);
+                Thread.Sleep(250);
 
                 _uaVariables["HeatPumpHeatingWaterCTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
                    IDMHeatPumpModbusUnitID,
@@ -681,7 +681,7 @@ namespace UAEdgeHEMS
                 _uaVariables["HeatPumpHeatingWaterCTemp"].Timestamp = DateTime.UtcNow;
                 _uaVariables["HeatPumpHeatingWaterCTemp"].ClearChangeMasks(SystemContext, false);
 
-                Thread.Sleep(100);
+                Thread.Sleep(250);
 
                 _uaVariables["HeatPumpTapWaterTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
                    IDMHeatPumpModbusUnitID,
@@ -692,7 +692,7 @@ namespace UAEdgeHEMS
                 _uaVariables["HeatPumpTapWaterTemp"].Timestamp = DateTime.UtcNow;
                 _uaVariables["HeatPumpTapWaterTemp"].ClearChangeMasks(SystemContext, false);
 
-                Thread.Sleep(100);
+                Thread.Sleep(250);
 
                 _uaVariables["HeatPumpCurrentPowerConsumption"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
                     IDMHeatPumpModbusUnitID,
@@ -703,7 +703,7 @@ namespace UAEdgeHEMS
                 _uaVariables["HeatPumpCurrentPowerConsumption"].Timestamp = DateTime.UtcNow;
                 _uaVariables["HeatPumpCurrentPowerConsumption"].ClearChangeMasks(SystemContext, false);
 
-                Thread.Sleep(100);
+                Thread.Sleep(250);
 
                 _uaVariables["HeatPumpMode"].Value = (float)BitConverter.ToUInt16(ByteSwapper.Swap(_heatPump.Read(
                    IDMHeatPumpModbusUnitID,

@@ -705,6 +705,13 @@ namespace UAEdgeHEMS
             catch (Exception ex)
             {
                 Log.Error(ex, "Communicating with heat pump failed!");
+
+                // reconnect
+                lock (_heatPump)
+                {
+                    _heatPump.Disconnect();
+                    _heatPump.Connect(IDMHeatPumpBaseAddress, IDMHeatPumpModbusTCPPort);
+                }
             }
         }
 

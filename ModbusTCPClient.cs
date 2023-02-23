@@ -63,9 +63,6 @@ namespace UAEdgeHEMS
 
         public Task<byte[]> Read(byte unitID, FunctionCode function, ushort registerBaseAddress, ushort count)
         {
-            // debounce reading to not overwhelm our poor little Modbus server
-            Task.Delay(500).GetAwaiter().GetResult();
-
             lock (this)
             {
                 // check funtion code

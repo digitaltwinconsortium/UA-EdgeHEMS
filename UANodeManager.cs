@@ -471,6 +471,7 @@ namespace UAEdgeHEMS
                     _uaVariables["MeterEnergyPurchased"].Value = (float)_sml.Meter.EnergyPurchased;
                     _uaVariables["MeterEnergySold"].Value = (float)_sml.Meter.EnergySold;
                     _uaVariables["CurrentPower"].Value = (float)_sml.Meter.CurrentPower;
+                    _uaVariables["CurrentPowerConsumed"].Value = (float)_uaVariables["PVOutputPower"].Value + (float)_sml.Meter.CurrentPower;
 
                     _uaVariables["EnergyCost"].Value = (float)_uaVariables["MeterEnergyPurchased"].Value * KWhCost;
                     _uaVariables["EnergyProfit"].Value = (float)_uaVariables["MeterEnergySold"].Value * KWhProfit;
@@ -482,7 +483,6 @@ namespace UAEdgeHEMS
                         && ((float)_uaVariables["PVOutputEnergyTotal"].Value != 0.0f))
                     {
                         _uaVariables["MeterEnergyConsumed"].Value = (float)_uaVariables["PVOutputEnergyTotal"].Value + (float)_sml.Meter.EnergyPurchased - (float)_sml.Meter.EnergySold;
-                        _uaVariables["CurrentPowerConsumed"].Value = (float)_uaVariables["PVOutputPower"].Value + (float)_sml.Meter.CurrentPower;
                     }
                 }
                 else

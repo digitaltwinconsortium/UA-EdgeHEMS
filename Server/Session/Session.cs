@@ -626,6 +626,7 @@ namespace Opc.Ua.Server
                 lock (DiagnosticsLock)
                 {
                     m_diagnostics.ClientLastContactTime = DateTime.UtcNow;
+                    Utils.LogError("Last client contact time updated at " + m_diagnostics.ClientLastContactTime.ToString());
                 }
 
                 // indicate whether the user context has changed.
@@ -939,7 +940,7 @@ namespace Opc.Ua.Server
             {
                 if (policy.IssuedTokenType == Profiles.JwtUserToken)
                 {
-                    issuedToken.IssuedTokenType = IssuedTokenType.JWT; 
+                    issuedToken.IssuedTokenType = IssuedTokenType.JWT;
                 }
             }
 
@@ -1068,6 +1069,7 @@ namespace Opc.Ua.Server
                 if (!error)
                 {
                     m_diagnostics.ClientLastContactTime = DateTime.UtcNow;
+                    Utils.LogError("Last client contact time updated at " + m_diagnostics.ClientLastContactTime.ToString());
                 }
 
                 m_diagnostics.TotalRequestCount.TotalCount++;

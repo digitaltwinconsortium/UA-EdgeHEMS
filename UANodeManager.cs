@@ -177,21 +177,30 @@ namespace UAEdgeHEMS
 
         private void AssetUpdateTask()
         {
+            Log.Information("Started Asset Update Thread.");
+
             while (true)
             {
                 Thread.Sleep(5000);
 
-                ReadWeatherData();
+                try
+                {
+                    ReadWeatherData();
 
-                ReadInverterTags();
+                    ReadInverterTags();
 
-                ReadHeatPumpTags();
+                    ReadHeatPumpTags();
 
-                ReadSmartMeterTags();
+                    ReadSmartMeterTags();
 
-                ControlSurplusEnergyForHeatPump();
+                    ControlSurplusEnergyForHeatPump();
 
-                ControlSmartEVCharging();
+                    ControlSmartEVCharging();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Asset Update Thread encountered an error!");
+                }
             }
         }
 

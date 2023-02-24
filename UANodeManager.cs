@@ -9,9 +9,9 @@ namespace UAEdgeHEMS
     using System;
     using System.Collections.Generic;
     using System.IO.Ports;
-    using System.Linq;
     using System.Net.Http;
     using System.Threading;
+    using System.Threading.Tasks;
 
     public class UANodeManager : CustomNodeManager2
     {
@@ -66,13 +66,6 @@ namespace UAEdgeHEMS
         private ModbusTCPClient _inverter = new ModbusTCPClient();
 
         private Dictionary<string, BaseDataVariableState> _uaVariables = new();
-
-        private Timer _timerWeather;
-        private Timer _timerInverter;
-        private Timer _timerHeatPump;
-        private Timer _timerSmartMeter;
-        private Timer _timerSurplus;
-        private Timer _timerEVCharging;
 
         public UANodeManager(IServerInternal server, ApplicationConfiguration configuration)
         : base(server, configuration)
@@ -178,13 +171,28 @@ namespace UAEdgeHEMS
                 _uaVariables["HeatPumpMode"].Value = 0.0f;
             }
 
-            // kick off our timers
-            _timerWeather = new Timer(ReadWeatherData, null, 15000, 15000);
-            _timerInverter = new Timer(ReadInverterTags, null, 15000, 15000);
-            _timerHeatPump = new Timer(ReadHeatPumpTags, null, 15000, 15000);
-            _timerSmartMeter = new Timer(ReadSmartMeterTags, null, 15000, 15000);
-            _timerSurplus = new Timer(ControlSurplusEnergyForHeatPump, null, 15000, 15000);
-            _timerEVCharging = new Timer(ControlSmartEVCharging, null, 15000, 15000);
+            // kick off our asset update task
+            _ = Task.Run(() => AssetUpdateTask());
+        }
+
+        private void AssetUpdateTask()
+        {
+            while (true)
+            {
+                Thread.Sleep(5000);
+
+                ReadWeatherData();
+
+                ReadInverterTags();
+
+                ReadHeatPumpTags();
+
+                ReadSmartMeterTags();
+
+                ControlSurplusEnergyForHeatPump();
+
+                ControlSmartEVCharging();
+            }
         }
 
         private void CreateUANodes(IList<IReference> references)
@@ -391,7 +399,7 @@ namespace UAEdgeHEMS
             return ServiceResult.Good;
         }
 
-        private void ControlSmartEVCharging(object state)
+        private void ControlSmartEVCharging()
         {
             try
             {
@@ -444,7 +452,7 @@ namespace UAEdgeHEMS
             }
         }
 
-        private void ReadSmartMeterTags(object state)
+        private void ReadSmartMeterTags()
         {
             try
             {
@@ -500,7 +508,7 @@ namespace UAEdgeHEMS
             }
         }
 
-        private void ControlSurplusEnergyForHeatPump(object state)
+        private void ControlSurplusEnergyForHeatPump()
         {
             try
             {
@@ -534,7 +542,7 @@ namespace UAEdgeHEMS
             }
         }
 
-        private void ReadInverterTags(object state)
+        private void ReadInverterTags()
         {
             try
             {
@@ -580,7 +588,7 @@ namespace UAEdgeHEMS
             }
         }
 
-        private void ReadWeatherData(object state)
+        private void ReadWeatherData()
         {
             try
             {
@@ -640,7 +648,7 @@ namespace UAEdgeHEMS
             }
         }
 
-        private void ReadHeatPumpTags(object state)
+        private void ReadHeatPumpTags()
         {
             try
             {

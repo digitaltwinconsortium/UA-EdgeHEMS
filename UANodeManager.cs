@@ -171,8 +171,8 @@ namespace UAEdgeHEMS
                 _uaVariables["HeatPumpMode"].Value = 0.0f;
             }
 
-            // kick off our asset update task
-            _ = Task.Run(() => AssetUpdateTask());
+            // kick off our asset update background task
+            _ = Task.Factory.StartNew(AssetUpdateTask, TaskCreationOptions.LongRunning);
         }
 
         private void AssetUpdateTask()

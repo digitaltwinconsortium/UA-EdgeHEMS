@@ -21,14 +21,14 @@ namespace UAEdgeHEMS
             PresetMultipleRegisters = 16
         }
 
-        private TcpClient tcpClient = null;
+        private TcpClient _tcpClient = null;
 
         // Modbus uses long timeouts (10 seconds minimum)
-        private const int timeout = 10000;
+        private const int _timeout = 10000;
 
-        private ushort transactionID = 0;
+        private ushort _transactionID = 0;
 
-        private const byte errorFlag = 0x80;
+        private const byte _errorFlag = 0x80;
 
         private void HandlerError(byte errorCode)
         {
@@ -50,15 +50,15 @@ namespace UAEdgeHEMS
 
         public void Connect(string ipAddress, int port)
         {
-            tcpClient = new TcpClient(ipAddress, port);
-            tcpClient.GetStream().ReadTimeout = timeout;
-            tcpClient.GetStream().WriteTimeout = timeout;
+            _tcpClient = new TcpClient(ipAddress, port);
+            _tcpClient.GetStream().ReadTimeout = _timeout;
+            _tcpClient.GetStream().WriteTimeout = _timeout;
         }
 
         public void Disconnect()
         {
-            tcpClient.Close();
-            tcpClient = null;
+            _tcpClient.Close();
+            _tcpClient = null;
         }
 
         public Task<byte[]> Read(byte unitID, FunctionCode function, ushort registerBaseAddress, ushort count)
@@ -74,7 +74,7 @@ namespace UAEdgeHEMS
                 }
 
                 ApplicationDataUnit aduRequest = new ApplicationDataUnit();
-                aduRequest.TransactionID = transactionID++;
+                aduRequest.TransactionID = _transactionID++;
                 aduRequest.Length = 6;
                 aduRequest.UnitID = unitID;
                 aduRequest.FunctionCode = (byte)function;
@@ -88,10 +88,10 @@ namespace UAEdgeHEMS
                 aduRequest.CopyADUToNetworkBuffer(buffer);
 
                 // send request to Modbus server
-                tcpClient.GetStream().Write(buffer, 0, ApplicationDataUnit.headerLength + 4);
+                _tcpClient.GetStream().Write(buffer, 0, ApplicationDataUnit.headerLength + 4);
 
                 // read response header from Modbus server
-                int numBytesRead = tcpClient.GetStream().Read(buffer, 0, ApplicationDataUnit.headerLength);
+                int numBytesRead = _tcpClient.GetStream().Read(buffer, 0, ApplicationDataUnit.headerLength);
                 if (numBytesRead != ApplicationDataUnit.headerLength)
                 {
                     throw new EndOfStreamException();
@@ -101,10 +101,10 @@ namespace UAEdgeHEMS
                 aduResponse.CopyHeaderFromNetworkBuffer(buffer);
 
                 // check for error
-                if ((aduResponse.FunctionCode & errorFlag) > 0)
+                if ((aduResponse.FunctionCode & _errorFlag) > 0)
                 {
                     // read error
-                    int errorCode = tcpClient.GetStream().ReadByte();
+                    int errorCode = _tcpClient.GetStream().ReadByte();
                     if (errorCode == -1)
                     {
                         throw new EndOfStreamException();
@@ -116,7 +116,7 @@ namespace UAEdgeHEMS
                 }
 
                 // read length of response
-                int length = tcpClient.GetStream().ReadByte();
+                int length = _tcpClient.GetStream().ReadByte();
                 if (length == -1)
                 {
                     throw new EndOfStreamException();
@@ -124,7 +124,7 @@ namespace UAEdgeHEMS
 
                 // read response
                 byte[] responseBuffer = new byte[length];
-                numBytesRead = tcpClient.GetStream().Read(responseBuffer, 0, length);
+                numBytesRead = _tcpClient.GetStream().Read(responseBuffer, 0, length);
                 if (numBytesRead != length)
                 {
                     throw new EndOfStreamException();
@@ -147,7 +147,7 @@ namespace UAEdgeHEMS
                 }
 
                 ApplicationDataUnit aduRequest = new ApplicationDataUnit();
-                aduRequest.TransactionID = transactionID++;
+                aduRequest.TransactionID = _transactionID++;
                 aduRequest.Length = (ushort)(7 + (values.Length * 2));
                 aduRequest.UnitID = unitID;
                 aduRequest.FunctionCode = (byte)FunctionCode.PresetMultipleRegisters;
@@ -169,10 +169,10 @@ namespace UAEdgeHEMS
                 aduRequest.CopyADUToNetworkBuffer(buffer);
 
                 // send request to Modbus server
-                tcpClient.GetStream().Write(buffer, 0, ApplicationDataUnit.headerLength + 5 + (values.Length * 2));
+                _tcpClient.GetStream().Write(buffer, 0, ApplicationDataUnit.headerLength + 5 + (values.Length * 2));
 
                 // read response
-                int numBytesRead = tcpClient.GetStream().Read(buffer, 0, ApplicationDataUnit.headerLength + 4);
+                int numBytesRead = _tcpClient.GetStream().Read(buffer, 0, ApplicationDataUnit.headerLength + 4);
                 if (numBytesRead != ApplicationDataUnit.headerLength + 4)
                 {
                     throw new EndOfStreamException();
@@ -182,10 +182,10 @@ namespace UAEdgeHEMS
                 aduResponse.CopyHeaderFromNetworkBuffer(buffer);
 
                 // check for error
-                if ((aduResponse.FunctionCode & errorFlag) > 0)
+                if ((aduResponse.FunctionCode & _errorFlag) > 0)
                 {
                     // read error
-                    int errorCode = tcpClient.GetStream().ReadByte();
+                    int errorCode = _tcpClient.GetStream().ReadByte();
                     if (errorCode == -1)
                     {
                         throw new EndOfStreamException();
@@ -220,7 +220,7 @@ namespace UAEdgeHEMS
             lock (this)
             {
                 ApplicationDataUnit aduRequest = new ApplicationDataUnit();
-                aduRequest.TransactionID = transactionID++;
+                aduRequest.TransactionID = _transactionID++;
                 aduRequest.Length = 6;
                 aduRequest.UnitID = unitID;
                 aduRequest.FunctionCode = (byte)FunctionCode.ForceSingleCoil;
@@ -234,10 +234,10 @@ namespace UAEdgeHEMS
                 aduRequest.CopyADUToNetworkBuffer(buffer);
 
                 // send request to Modbus server
-                tcpClient.GetStream().Write(buffer, 0, ApplicationDataUnit.headerLength + 4);
+                _tcpClient.GetStream().Write(buffer, 0, ApplicationDataUnit.headerLength + 4);
 
                 // read response
-                int numBytesRead = tcpClient.GetStream().Read(buffer, 0, ApplicationDataUnit.headerLength + 4);
+                int numBytesRead = _tcpClient.GetStream().Read(buffer, 0, ApplicationDataUnit.headerLength + 4);
                 if (numBytesRead != ApplicationDataUnit.headerLength + 4)
                 {
                     throw new EndOfStreamException();
@@ -247,10 +247,10 @@ namespace UAEdgeHEMS
                 aduResponse.CopyHeaderFromNetworkBuffer(buffer);
 
                 // check for error
-                if ((aduResponse.FunctionCode & errorFlag) > 0)
+                if ((aduResponse.FunctionCode & _errorFlag) > 0)
                 {
                     // read error
-                    int errorCode = tcpClient.GetStream().ReadByte();
+                    int errorCode = _tcpClient.GetStream().ReadByte();
                     if (errorCode == -1)
                     {
                         throw new EndOfStreamException();

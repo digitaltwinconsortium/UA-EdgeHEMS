@@ -160,48 +160,24 @@ namespace UAEdgeHEMS
                 CreateUANodes(references);
 
                 AddReverseReferences(externalReferences);
-
-                // set inital values
-                _uaVariables["ChargeNow"].Value = 0.0f;
-                _uaVariables["NumChargingPhases"].Value = 2.0f;
-                _uaVariables["CurrentPower"].Value = 0.0f;
-                _uaVariables["PVOutputEnergyTotal"].Value = 0.0f;
-                _uaVariables["PVOutputPower"].Value = 0.0f;
-                _uaVariables["HeatPumpCurrentPowerConsumption"].Value = 0.0f;
-                _uaVariables["HeatPumpMode"].Value = 0.0f;
             }
 
-            // kick off our asset update background task
-            _ = Task.Factory.StartNew(AssetUpdateTask, TaskCreationOptions.LongRunning);
-        }
+            // set inital values
+            _uaVariables["ChargeNow"].Value = 0.0f;
+            _uaVariables["NumChargingPhases"].Value = 2.0f;
+            _uaVariables["CurrentPower"].Value = 0.0f;
+            _uaVariables["PVOutputEnergyTotal"].Value = 0.0f;
+            _uaVariables["PVOutputPower"].Value = 0.0f;
+            _uaVariables["HeatPumpCurrentPowerConsumption"].Value = 0.0f;
+            _uaVariables["HeatPumpMode"].Value = 0.0f;
 
-        private void AssetUpdateTask()
-        {
-            Log.Information("Started Asset Update Thread.");
-
-            while (true)
-            {
-                Thread.Sleep(5000);
-
-                try
-                {
-                    ReadWeatherData();
-
-                    ReadInverterTags();
-
-                    ReadHeatPumpTags();
-
-                    ReadSmartMeterTags();
-
-                    ControlSurplusEnergyForHeatPump();
-
-                    ControlSmartEVCharging();
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "Asset Update Thread encountered an error!");
-                }
-            }
+            // kick off our asset update background tasks
+            _ = Task.Factory.StartNew(ReadWeatherData, TaskCreationOptions.LongRunning);
+            _ = Task.Factory.StartNew(ReadInverterTags, TaskCreationOptions.LongRunning);
+            _ = Task.Factory.StartNew(ReadHeatPumpTags, TaskCreationOptions.LongRunning);
+            _ = Task.Factory.StartNew(ReadSmartMeterTags, TaskCreationOptions.LongRunning);
+            _ = Task.Factory.StartNew(ControlSurplusEnergyForHeatPump, TaskCreationOptions.LongRunning);
+            _ = Task.Factory.StartNew(ControlSmartEVCharging, TaskCreationOptions.LongRunning);
         }
 
         private void CreateUANodes(IList<IReference> references)
@@ -410,350 +386,406 @@ namespace UAEdgeHEMS
 
         private void ControlSmartEVCharging()
         {
-            try
+            Log.Information("Started Control Smart EV Charging Thread.");
+
+            while (true)
             {
-                lock (_wallbox)
+                Thread.Sleep(15000);
+
+                Log.Information("Executing Control Smart EV Charging.");
+
+                try
                 {
-                    // ramp up or down EV charging, based on surplus
-                    bool chargingInProgress = IsEVChargingInProgress(_wallbox);
-                    _uaVariables["EVChargingInProgress"].Value = chargingInProgress ? 1.0f : 0.0f;
-                    _uaVariables["EVChargingInProgress"].Timestamp = DateTime.UtcNow;
-                    _uaVariables["EVChargingInProgress"].ClearChangeMasks(SystemContext, false);
-
-                    if (chargingInProgress)
+                    lock (_wallbox)
                     {
-                        // read current current (in Amps)
-                        ushort wallbeWallboxCurrentCurrentSetting = BitConverter.ToUInt16(ByteSwapper.Swap(_wallbox.Read(
-                            WallbeWallboxModbusUnitID,
-                            ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
-                            WallbeWallboxCurrentCurrentSettingAddress,
-                            1).GetAwaiter().GetResult()));
-                        _uaVariables["WallboxCurrent"].Value = (float)wallbeWallboxCurrentCurrentSetting;
+                        // ramp up or down EV charging, based on surplus
+                        bool chargingInProgress = IsEVChargingInProgress(_wallbox);
+                        _uaVariables["EVChargingInProgress"].Value = chargingInProgress ? 1.0f : 0.0f;
+                        _uaVariables["EVChargingInProgress"].Timestamp = DateTime.UtcNow;
+                        _uaVariables["EVChargingInProgress"].ClearChangeMasks(SystemContext, false);
 
-                        OptimizeEVCharging(_wallbox, (float)_uaVariables["CurrentPower"].Value);
-                    }
-                    else
-                    {
-                        _uaVariables["WallboxCurrent"].Value = 0.0f;
-
-                        // check if we should start charging our EV with the surplus power, but we need at least 6A of current per charing phase
-                        // or the user set the "charge now" flag via direct method
-                        if ((((float)_uaVariables["CurrentPower"].Value / 230.0f) < ((float)_uaVariables["NumChargingPhases"].Value * -6.0f)) || ((float)_uaVariables["ChargeNow"].Value == 1.0f))
+                        if (chargingInProgress)
                         {
-                            StartEVCharging(_wallbox);
+                            // read current current (in Amps)
+                            ushort wallbeWallboxCurrentCurrentSetting = BitConverter.ToUInt16(ByteSwapper.Swap(_wallbox.Read(
+                                WallbeWallboxModbusUnitID,
+                                ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
+                                WallbeWallboxCurrentCurrentSettingAddress,
+                                1).GetAwaiter().GetResult()));
+                            _uaVariables["WallboxCurrent"].Value = (float)wallbeWallboxCurrentCurrentSetting;
+
+                            OptimizeEVCharging(_wallbox, (float)_uaVariables["CurrentPower"].Value);
                         }
+                        else
+                        {
+                            _uaVariables["WallboxCurrent"].Value = 0.0f;
+
+                            // check if we should start charging our EV with the surplus power, but we need at least 6A of current per charing phase
+                            // or the user set the "charge now" flag via direct method
+                            if ((((float)_uaVariables["CurrentPower"].Value / 230.0f) < ((float)_uaVariables["NumChargingPhases"].Value * -6.0f)) || ((float)_uaVariables["ChargeNow"].Value == 1.0f))
+                            {
+                                StartEVCharging(_wallbox);
+                            }
+                        }
+
+                        _uaVariables["WallboxCurrent"].Timestamp = DateTime.UtcNow;
+                        _uaVariables["WallboxCurrent"].ClearChangeMasks(SystemContext, false);
                     }
-
-                    _uaVariables["WallboxCurrent"].Timestamp = DateTime.UtcNow;
-                    _uaVariables["WallboxCurrent"].ClearChangeMasks(SystemContext, false);
                 }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "EV charging control failed!");
-
-                // reconnect
-                lock (_wallbox)
+                catch (Exception ex)
                 {
-                    _wallbox.Disconnect();
-                    _wallbox.Connect(WallbeWallboxBaseAddress, WallbeWallboxModbusTCPPort);
+                    Log.Error(ex, "EV charging control failed!");
+
+                    // reconnect
+                    lock (_wallbox)
+                    {
+                        _wallbox.Disconnect();
+                        _wallbox.Connect(WallbeWallboxBaseAddress, WallbeWallboxModbusTCPPort);
+                    }
                 }
             }
         }
 
         private void ReadSmartMeterTags()
         {
-            try
+            Log.Information("Started Read Smart Meter Tags Thread.");
+
+            while (true)
             {
-                if (_sml != null)
+                Thread.Sleep(15000);
+
+                Log.Information("Executing Read Smart Meter Tags.");
+
+                try
                 {
-                    // read the current smart meter data
-                    _uaVariables["MeterEnergyPurchased"].Value = (float)_sml.Meter.EnergyPurchased;
-                    _uaVariables["MeterEnergySold"].Value = (float)_sml.Meter.EnergySold;
-                    _uaVariables["CurrentPower"].Value = (float)_sml.Meter.CurrentPower;
-                    _uaVariables["CurrentPowerConsumed"].Value = (float)_uaVariables["PVOutputPower"].Value + (float)_sml.Meter.CurrentPower;
-
-                    _uaVariables["EnergyCost"].Value = (float)_uaVariables["MeterEnergyPurchased"].Value * KWhCost;
-                    _uaVariables["EnergyProfit"].Value = (float)_uaVariables["MeterEnergySold"].Value * KWhProfit;
-
-                    // calculate energy consumed from the other telemetry, if available
-                    _uaVariables["MeterEnergyConsumed"].Value = 0.0f;
-                    if (((float)_uaVariables["MeterEnergyPurchased"].Value != 0.0f)
-                        && ((float)_uaVariables["MeterEnergySold"].Value != 0.0f)
-                        && ((float)_uaVariables["PVOutputEnergyTotal"].Value != 0.0f))
+                    if (_sml != null)
                     {
-                        _uaVariables["MeterEnergyConsumed"].Value = (float)_uaVariables["PVOutputEnergyTotal"].Value + (float)_sml.Meter.EnergyPurchased - (float)_sml.Meter.EnergySold;
-                    }
-                }
-                else
-                {
-                    _uaVariables["MeterEnergyPurchased"].Value = 0.0f;
-                    _uaVariables["MeterEnergySold"].Value = 0.0f;
-                    _uaVariables["CurrentPower"].Value = 0.0f;
-                    _uaVariables["EnergyCost"].Value = 0.0f;
-                    _uaVariables["EnergyProfit"].Value = 0.0f;
-                    _uaVariables["MeterEnergyConsumed"].Value = 0.0f;
-                    _uaVariables["CurrentPowerConsumed"].Value = 0.0f;
-                }
+                        // read the current smart meter data
+                        _uaVariables["MeterEnergyPurchased"].Value = (float)_sml.Meter.EnergyPurchased;
+                        _uaVariables["MeterEnergySold"].Value = (float)_sml.Meter.EnergySold;
+                        _uaVariables["CurrentPower"].Value = (float)_sml.Meter.CurrentPower;
+                        _uaVariables["CurrentPowerConsumed"].Value = (float)_uaVariables["PVOutputPower"].Value + (float)_sml.Meter.CurrentPower;
 
-                _uaVariables["MeterEnergyPurchased"].Timestamp = DateTime.UtcNow;
-                _uaVariables["MeterEnergyPurchased"].ClearChangeMasks(SystemContext, false);
-                _uaVariables["MeterEnergySold"].Timestamp = DateTime.UtcNow;
-                _uaVariables["MeterEnergySold"].ClearChangeMasks(SystemContext, false);
-                _uaVariables["CurrentPower"].Timestamp = DateTime.UtcNow;
-                _uaVariables["CurrentPower"].ClearChangeMasks(SystemContext, false);
-                _uaVariables["EnergyCost"].Timestamp = DateTime.UtcNow;
-                _uaVariables["EnergyCost"].ClearChangeMasks(SystemContext, false);
-                _uaVariables["EnergyProfit"].Timestamp = DateTime.UtcNow;
-                _uaVariables["EnergyProfit"].ClearChangeMasks(SystemContext, false);
-                _uaVariables["MeterEnergyConsumed"].Timestamp = DateTime.UtcNow;
-                _uaVariables["MeterEnergyConsumed"].ClearChangeMasks(SystemContext, false);
-                _uaVariables["CurrentPowerConsumed"].Timestamp = DateTime.UtcNow;
-                _uaVariables["CurrentPowerConsumed"].ClearChangeMasks(SystemContext, false);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Getting smart meter data failed!");
+                        _uaVariables["EnergyCost"].Value = (float)_uaVariables["MeterEnergyPurchased"].Value * KWhCost;
+                        _uaVariables["EnergyProfit"].Value = (float)_uaVariables["MeterEnergySold"].Value * KWhProfit;
+
+                        // calculate energy consumed from the other telemetry, if available
+                        _uaVariables["MeterEnergyConsumed"].Value = 0.0f;
+                        if (((float)_uaVariables["MeterEnergyPurchased"].Value != 0.0f)
+                            && ((float)_uaVariables["MeterEnergySold"].Value != 0.0f)
+                            && ((float)_uaVariables["PVOutputEnergyTotal"].Value != 0.0f))
+                        {
+                            _uaVariables["MeterEnergyConsumed"].Value = (float)_uaVariables["PVOutputEnergyTotal"].Value + (float)_sml.Meter.EnergyPurchased - (float)_sml.Meter.EnergySold;
+                        }
+                    }
+                    else
+                    {
+                        _uaVariables["MeterEnergyPurchased"].Value = 0.0f;
+                        _uaVariables["MeterEnergySold"].Value = 0.0f;
+                        _uaVariables["CurrentPower"].Value = 0.0f;
+                        _uaVariables["EnergyCost"].Value = 0.0f;
+                        _uaVariables["EnergyProfit"].Value = 0.0f;
+                        _uaVariables["MeterEnergyConsumed"].Value = 0.0f;
+                        _uaVariables["CurrentPowerConsumed"].Value = 0.0f;
+                    }
+
+                    _uaVariables["MeterEnergyPurchased"].Timestamp = DateTime.UtcNow;
+                    _uaVariables["MeterEnergyPurchased"].ClearChangeMasks(SystemContext, false);
+                    _uaVariables["MeterEnergySold"].Timestamp = DateTime.UtcNow;
+                    _uaVariables["MeterEnergySold"].ClearChangeMasks(SystemContext, false);
+                    _uaVariables["CurrentPower"].Timestamp = DateTime.UtcNow;
+                    _uaVariables["CurrentPower"].ClearChangeMasks(SystemContext, false);
+                    _uaVariables["EnergyCost"].Timestamp = DateTime.UtcNow;
+                    _uaVariables["EnergyCost"].ClearChangeMasks(SystemContext, false);
+                    _uaVariables["EnergyProfit"].Timestamp = DateTime.UtcNow;
+                    _uaVariables["EnergyProfit"].ClearChangeMasks(SystemContext, false);
+                    _uaVariables["MeterEnergyConsumed"].Timestamp = DateTime.UtcNow;
+                    _uaVariables["MeterEnergyConsumed"].ClearChangeMasks(SystemContext, false);
+                    _uaVariables["CurrentPowerConsumed"].Timestamp = DateTime.UtcNow;
+                    _uaVariables["CurrentPowerConsumed"].ClearChangeMasks(SystemContext, false);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Getting smart meter data failed!");
+                }
             }
         }
 
         private void ControlSurplusEnergyForHeatPump()
         {
-            try
+            Log.Information("Started Control Surplus Energy For Heat Pump Thread.");
+
+            while (true)
             {
-                // set the surplus for our heatpump in kW
-                float surplusPowerKW = -((float)_uaVariables["CurrentPower"].Value / 1000.0f);
-                float heatPumpPowerRequirementKW = (float)_uaVariables["HeatPumpCurrentPowerConsumption"].Value;
-                if (surplusPowerKW > heatPumpPowerRequirementKW)
+                Thread.Sleep(15000);
+
+                Log.Information("Executing Control Surplus Energy For Heat Pump.");
+
+                try
                 {
-                    byte[] buffer = new byte[4];
-                    BitConverter.TryWriteBytes(buffer, surplusPowerKW);
-                    ushort[] registers = new ushort[2];
-                    registers[0] = (ushort)(buffer[1] << 8 | buffer[0]);
-                    registers[1] = (ushort)(buffer[3] << 8 | buffer[2]);
-
-                    lock (_heatPump)
+                    // set the surplus for our heatpump in kW
+                    float surplusPowerKW = -((float)_uaVariables["CurrentPower"].Value / 1000.0f);
+                    float heatPumpPowerRequirementKW = (float)_uaVariables["HeatPumpCurrentPowerConsumption"].Value;
+                    if (surplusPowerKW > heatPumpPowerRequirementKW)
                     {
-                        _heatPump.Connect(IDMHeatPumpBaseAddress, IDMHeatPumpModbusTCPPort);
+                        byte[] buffer = new byte[4];
+                        BitConverter.TryWriteBytes(buffer, surplusPowerKW);
+                        ushort[] registers = new ushort[2];
+                        registers[0] = (ushort)(buffer[1] << 8 | buffer[0]);
+                        registers[1] = (ushort)(buffer[3] << 8 | buffer[2]);
 
-                        _heatPump.WriteHoldingRegisters(
-                            IDMHeatPumpModbusUnitID,
-                            IDMHeatPumpPVSurplus,
-                            registers).GetAwaiter().GetResult();
+                        lock (_heatPump)
+                        {
+                            _heatPump.Connect(IDMHeatPumpBaseAddress, IDMHeatPumpModbusTCPPort);
 
-                        _heatPump.Disconnect();
+                            _heatPump.WriteHoldingRegisters(
+                                IDMHeatPumpModbusUnitID,
+                                IDMHeatPumpPVSurplus,
+                                registers).GetAwaiter().GetResult();
+
+                            _heatPump.Disconnect();
+                        }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Surplus energy control for heat pump failed!");
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Surplus energy control for heat pump failed!");
+                }
             }
         }
 
         private void ReadInverterTags()
         {
-            try
+            Log.Information("Started Read Inverter Tags Thread.");
+
+            while (true)
             {
-                using (HttpClient webClient = new())
+                Thread.Sleep(15000);
+
+                Log.Information("Executing Read Inverter Tags.");
+
+                try
                 {
-                    // read the current converter data from web service
-                    string address = "http://" + FroniusInverterBaseAddress + "/solar_api/v1/GetInverterRealtimeData.cgi?Scope=Device&DeviceID=1&DataCollection=CommonInverterData";
-                    HttpResponseMessage response = webClient.Send(new HttpRequestMessage(HttpMethod.Get, address));
-                    string responseString = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-                    DCACConverter converter = JsonConvert.DeserializeObject<DCACConverter>(responseString);
-                    if (converter != null)
+                    using (HttpClient webClient = new())
                     {
-                        if (converter.Body.Data.PAC != null)
+                        // read the current converter data from web service
+                        string address = "http://" + FroniusInverterBaseAddress + "/solar_api/v1/GetInverterRealtimeData.cgi?Scope=Device&DeviceID=1&DataCollection=CommonInverterData";
+                        HttpResponseMessage response = webClient.Send(new HttpRequestMessage(HttpMethod.Get, address));
+                        string responseString = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                        DCACConverter converter = JsonConvert.DeserializeObject<DCACConverter>(responseString);
+                        if (converter != null)
                         {
-                            _uaVariables["PVOutputPower"].Value = (float)converter.Body.Data.PAC.Value;
-                            _uaVariables["PVOutputPower"].Timestamp = DateTime.UtcNow;
-                            _uaVariables["PVOutputPower"].ClearChangeMasks(SystemContext, false);
-                        }
-                        if (converter.Body.Data.DAY_ENERGY != null)
-                        {
-                            _uaVariables["PVOutputEnergyDay"].Value = ((float)converter.Body.Data.DAY_ENERGY.Value) / 1000.0f;
-                            _uaVariables["PVOutputEnergyDay"].Timestamp = DateTime.UtcNow;
-                            _uaVariables["PVOutputEnergyDay"].ClearChangeMasks(SystemContext, false);
-                        }
-                        if (converter.Body.Data.YEAR_ENERGY != null)
-                        {
-                            _uaVariables["PVOutputEnergyYear"].Value = ((float)converter.Body.Data.YEAR_ENERGY.Value) / 1000.0f;
-                            _uaVariables["PVOutputEnergyYear"].Timestamp = DateTime.UtcNow;
-                            _uaVariables["PVOutputEnergyYear"].ClearChangeMasks(SystemContext, false);
-                        }
-                        if (converter.Body.Data.TOTAL_ENERGY != null)
-                        {
-                            _uaVariables["PVOutputEnergyTotal"].Value = ((float)converter.Body.Data.TOTAL_ENERGY.Value) / 1000.0f;
-                            _uaVariables["PVOutputEnergyTotal"].Timestamp = DateTime.UtcNow;
-                            _uaVariables["PVOutputEnergyTotal"].ClearChangeMasks(SystemContext, false);
+                            if (converter.Body.Data.PAC != null)
+                            {
+                                _uaVariables["PVOutputPower"].Value = (float)converter.Body.Data.PAC.Value;
+                                _uaVariables["PVOutputPower"].Timestamp = DateTime.UtcNow;
+                                _uaVariables["PVOutputPower"].ClearChangeMasks(SystemContext, false);
+                            }
+                            if (converter.Body.Data.DAY_ENERGY != null)
+                            {
+                                _uaVariables["PVOutputEnergyDay"].Value = ((float)converter.Body.Data.DAY_ENERGY.Value) / 1000.0f;
+                                _uaVariables["PVOutputEnergyDay"].Timestamp = DateTime.UtcNow;
+                                _uaVariables["PVOutputEnergyDay"].ClearChangeMasks(SystemContext, false);
+                            }
+                            if (converter.Body.Data.YEAR_ENERGY != null)
+                            {
+                                _uaVariables["PVOutputEnergyYear"].Value = ((float)converter.Body.Data.YEAR_ENERGY.Value) / 1000.0f;
+                                _uaVariables["PVOutputEnergyYear"].Timestamp = DateTime.UtcNow;
+                                _uaVariables["PVOutputEnergyYear"].ClearChangeMasks(SystemContext, false);
+                            }
+                            if (converter.Body.Data.TOTAL_ENERGY != null)
+                            {
+                                _uaVariables["PVOutputEnergyTotal"].Value = ((float)converter.Body.Data.TOTAL_ENERGY.Value) / 1000.0f;
+                                _uaVariables["PVOutputEnergyTotal"].Timestamp = DateTime.UtcNow;
+                                _uaVariables["PVOutputEnergyTotal"].ClearChangeMasks(SystemContext, false);
+                            }
                         }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Getting converter data failed!");
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Getting converter data failed!");
+                }
             }
         }
 
         private void ReadWeatherData()
         {
-            try
+            Log.Information("Started Read Weather Data Thread.");
+
+            while (true)
             {
-                using (HttpClient webClient = new())
+                Thread.Sleep(15000);
+
+                Log.Information("Executing Read Weather Data.");
+
+                try
                 {
-                    // read the current weather data from web service
-                    string address = "https://api.openweathermap.org/data/2.5/weather?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b";
-                    HttpResponseMessage response = webClient.Send(new HttpRequestMessage(HttpMethod.Get, address));
-                    string responseString = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-                    WeatherInfo weather = JsonConvert.DeserializeObject<WeatherInfo>(responseString);
-                    if (weather != null)
+                    using (HttpClient webClient = new())
                     {
-                        _uaVariables["Temperature"].Value = (float)weather.main.temp;
-                        _uaVariables["Temperature"].Timestamp = DateTime.UtcNow;
-                        _uaVariables["Temperature"].ClearChangeMasks(SystemContext, false);
-
-                        _uaVariables["WindSpeed"].Value = (float)weather.wind.speed;
-                        _uaVariables["WindSpeed"].Timestamp = DateTime.UtcNow;
-                        _uaVariables["WindSpeed"].ClearChangeMasks(SystemContext, false);
-
-                        _uaVariables["CloudCover"].Value = weather.weather[0].description;
-                        _uaVariables["CloudCover"].Timestamp = DateTime.UtcNow;
-                        _uaVariables["CloudCover"].ClearChangeMasks(SystemContext, false);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Getting weather data failed!");
-            }
-
-            try
-            {
-                using (HttpClient webClient = new())
-                {
-                    // read the current forecast data from web service
-                    string address = "https://api.openweathermap.org/data/2.5/forecast?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b";
-                    HttpResponseMessage response = webClient.Send(new HttpRequestMessage(HttpMethod.Get, address));
-                    string responseString = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-                    Forecast forecast = JsonConvert.DeserializeObject<Forecast>(responseString);
-                    if (forecast != null && forecast.list != null && forecast.list.Count == 40)
-                    {
-                        _uaVariables["CloudinessForecast"].Value = string.Empty;
-                        for (int i = 0; i < 40; i++)
+                        // read the current weather data from web service
+                        string address = "https://api.openweathermap.org/data/2.5/weather?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b";
+                        HttpResponseMessage response = webClient.Send(new HttpRequestMessage(HttpMethod.Get, address));
+                        string responseString = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                        WeatherInfo weather = JsonConvert.DeserializeObject<WeatherInfo>(responseString);
+                        if (weather != null)
                         {
-                            _uaVariables["CloudinessForecast"].Value = (string)_uaVariables["CloudinessForecast"].Value + "Cloudiness on " + forecast.list[i].dt_txt + ": " + forecast.list[i].clouds.all + "%\r\n";
-                        }
+                            _uaVariables["Temperature"].Value = (float)weather.main.temp;
+                            _uaVariables["Temperature"].Timestamp = DateTime.UtcNow;
+                            _uaVariables["Temperature"].ClearChangeMasks(SystemContext, false);
 
-                        _uaVariables["CloudinessForecast"].Timestamp = DateTime.UtcNow;
-                        _uaVariables["CloudinessForecast"].ClearChangeMasks(SystemContext, false);
+                            _uaVariables["WindSpeed"].Value = (float)weather.wind.speed;
+                            _uaVariables["WindSpeed"].Timestamp = DateTime.UtcNow;
+                            _uaVariables["WindSpeed"].ClearChangeMasks(SystemContext, false);
+
+                            _uaVariables["CloudCover"].Value = weather.weather[0].description;
+                            _uaVariables["CloudCover"].Timestamp = DateTime.UtcNow;
+                            _uaVariables["CloudCover"].ClearChangeMasks(SystemContext, false);
+                        }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Getting weather forecast failed!");
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Getting weather data failed!");
+                }
+
+                try
+                {
+                    using (HttpClient webClient = new())
+                    {
+                        // read the current forecast data from web service
+                        string address = "https://api.openweathermap.org/data/2.5/forecast?q=Munich,de&units=metric&appid=2898258e654f7f321ef3589c4fa58a9b";
+                        HttpResponseMessage response = webClient.Send(new HttpRequestMessage(HttpMethod.Get, address));
+                        string responseString = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                        Forecast forecast = JsonConvert.DeserializeObject<Forecast>(responseString);
+                        if (forecast != null && forecast.list != null && forecast.list.Count == 40)
+                        {
+                            _uaVariables["CloudinessForecast"].Value = string.Empty;
+                            for (int i = 0; i < 40; i++)
+                            {
+                                _uaVariables["CloudinessForecast"].Value = (string)_uaVariables["CloudinessForecast"].Value + "Cloudiness on " + forecast.list[i].dt_txt + ": " + forecast.list[i].clouds.all + "%\r\n";
+                            }
+
+                            _uaVariables["CloudinessForecast"].Timestamp = DateTime.UtcNow;
+                            _uaVariables["CloudinessForecast"].ClearChangeMasks(SystemContext, false);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Getting weather forecast failed!");
+                }
             }
         }
 
         private void ReadHeatPumpTags()
         {
-            try
+            Log.Information("Started Read Heat Pump Tags Thread.");
+
+            while (true)
             {
-                lock (_heatPump)
+                Thread.Sleep(15000);
+
+                Log.Information("Executing Read Heat Pump Tags.");
+
+                try
                 {
-                    // init Modbus TCP client for heat pump
-                    _heatPump.Connect(IDMHeatPumpBaseAddress, IDMHeatPumpModbusTCPPort);
+                    lock (_heatPump)
+                    {
+                        // init Modbus TCP client for heat pump
+                        _heatPump.Connect(IDMHeatPumpBaseAddress, IDMHeatPumpModbusTCPPort);
 
-                    // read the heat pump registers
-                    _uaVariables["HeatPumpOutsideTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
-                        IDMHeatPumpModbusUnitID,
-                        ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                        IDMHeatPumpOutsideTemp,
-                        2).GetAwaiter().GetResult(), true));
+                        // read the heat pump registers
+                        _uaVariables["HeatPumpOutsideTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
+                            IDMHeatPumpModbusUnitID,
+                            ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                            IDMHeatPumpOutsideTemp,
+                            2).GetAwaiter().GetResult(), true));
 
-                    _uaVariables["HeatPumpOutsideTemp"].Timestamp = DateTime.UtcNow;
-                    _uaVariables["HeatPumpOutsideTemp"].ClearChangeMasks(SystemContext, false);
+                        _uaVariables["HeatPumpOutsideTemp"].Timestamp = DateTime.UtcNow;
+                        _uaVariables["HeatPumpOutsideTemp"].ClearChangeMasks(SystemContext, false);
 
-                    Thread.Sleep(250);
+                        Thread.Sleep(250);
 
-                    _uaVariables["HeatPumpHeatingWaterATemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
-                        IDMHeatPumpModbusUnitID,
-                        ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                        IDMHeatPumpHeatingWaterATemp,
-                        2).GetAwaiter().GetResult(), true));
+                        _uaVariables["HeatPumpHeatingWaterATemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
+                            IDMHeatPumpModbusUnitID,
+                            ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                            IDMHeatPumpHeatingWaterATemp,
+                            2).GetAwaiter().GetResult(), true));
 
-                    _uaVariables["HeatPumpHeatingWaterATemp"].Timestamp = DateTime.UtcNow;
-                    _uaVariables["HeatPumpHeatingWaterATemp"].ClearChangeMasks(SystemContext, false);
+                        _uaVariables["HeatPumpHeatingWaterATemp"].Timestamp = DateTime.UtcNow;
+                        _uaVariables["HeatPumpHeatingWaterATemp"].ClearChangeMasks(SystemContext, false);
 
-                    Thread.Sleep(250);
+                        Thread.Sleep(250);
 
-                    _uaVariables["HeatPumpHeatingWaterBTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
-                        IDMHeatPumpModbusUnitID,
-                        ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                        IDMHeatPumpHeatingWaterBTemp,
-                        2).GetAwaiter().GetResult(), true));
+                        _uaVariables["HeatPumpHeatingWaterBTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
+                            IDMHeatPumpModbusUnitID,
+                            ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                            IDMHeatPumpHeatingWaterBTemp,
+                            2).GetAwaiter().GetResult(), true));
 
-                    _uaVariables["HeatPumpHeatingWaterBTemp"].Timestamp = DateTime.UtcNow;
-                    _uaVariables["HeatPumpHeatingWaterBTemp"].ClearChangeMasks(SystemContext, false);
+                        _uaVariables["HeatPumpHeatingWaterBTemp"].Timestamp = DateTime.UtcNow;
+                        _uaVariables["HeatPumpHeatingWaterBTemp"].ClearChangeMasks(SystemContext, false);
 
-                    Thread.Sleep(250);
+                        Thread.Sleep(250);
 
-                    _uaVariables["HeatPumpHeatingWaterCTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
-                       IDMHeatPumpModbusUnitID,
-                       ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                       IDMHeatPumpHeatingWaterCTemp,
-                       2).GetAwaiter().GetResult(), true));
+                        _uaVariables["HeatPumpHeatingWaterCTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
+                           IDMHeatPumpModbusUnitID,
+                           ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                           IDMHeatPumpHeatingWaterCTemp,
+                           2).GetAwaiter().GetResult(), true));
 
-                    _uaVariables["HeatPumpHeatingWaterCTemp"].Timestamp = DateTime.UtcNow;
-                    _uaVariables["HeatPumpHeatingWaterCTemp"].ClearChangeMasks(SystemContext, false);
+                        _uaVariables["HeatPumpHeatingWaterCTemp"].Timestamp = DateTime.UtcNow;
+                        _uaVariables["HeatPumpHeatingWaterCTemp"].ClearChangeMasks(SystemContext, false);
 
-                    Thread.Sleep(250);
+                        Thread.Sleep(250);
 
-                    _uaVariables["HeatPumpTapWaterTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
-                       IDMHeatPumpModbusUnitID,
-                       ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                       IDMHeatPumpTapWaterTemp,
-                       2).GetAwaiter().GetResult(), true));
+                        _uaVariables["HeatPumpTapWaterTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
+                           IDMHeatPumpModbusUnitID,
+                           ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                           IDMHeatPumpTapWaterTemp,
+                           2).GetAwaiter().GetResult(), true));
 
-                    _uaVariables["HeatPumpTapWaterTemp"].Timestamp = DateTime.UtcNow;
-                    _uaVariables["HeatPumpTapWaterTemp"].ClearChangeMasks(SystemContext, false);
+                        _uaVariables["HeatPumpTapWaterTemp"].Timestamp = DateTime.UtcNow;
+                        _uaVariables["HeatPumpTapWaterTemp"].ClearChangeMasks(SystemContext, false);
 
-                    Thread.Sleep(250);
+                        Thread.Sleep(250);
 
-                    _uaVariables["HeatPumpCurrentPowerConsumption"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
-                        IDMHeatPumpModbusUnitID,
-                        ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                        IDMHeatPumpCurrentPowerConsumption,
-                        2).GetAwaiter().GetResult(), true));
+                        _uaVariables["HeatPumpCurrentPowerConsumption"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
+                            IDMHeatPumpModbusUnitID,
+                            ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                            IDMHeatPumpCurrentPowerConsumption,
+                            2).GetAwaiter().GetResult(), true));
 
-                    _uaVariables["HeatPumpCurrentPowerConsumption"].Timestamp = DateTime.UtcNow;
-                    _uaVariables["HeatPumpCurrentPowerConsumption"].ClearChangeMasks(SystemContext, false);
+                        _uaVariables["HeatPumpCurrentPowerConsumption"].Timestamp = DateTime.UtcNow;
+                        _uaVariables["HeatPumpCurrentPowerConsumption"].ClearChangeMasks(SystemContext, false);
 
-                    Thread.Sleep(250);
+                        Thread.Sleep(250);
 
-                    _uaVariables["HeatPumpMode"].Value = (float)BitConverter.ToUInt16(ByteSwapper.Swap(_heatPump.Read(
-                       IDMHeatPumpModbusUnitID,
-                       ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                       IDMHeatPumpMode,
-                       1).GetAwaiter().GetResult(), true));
+                        _uaVariables["HeatPumpMode"].Value = (float)BitConverter.ToUInt16(ByteSwapper.Swap(_heatPump.Read(
+                           IDMHeatPumpModbusUnitID,
+                           ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                           IDMHeatPumpMode,
+                           1).GetAwaiter().GetResult(), true));
 
-                    _uaVariables["HeatPumpMode"].Timestamp = DateTime.UtcNow;
-                    _uaVariables["HeatPumpMode"].ClearChangeMasks(SystemContext, false);
+                        _uaVariables["HeatPumpMode"].Timestamp = DateTime.UtcNow;
+                        _uaVariables["HeatPumpMode"].ClearChangeMasks(SystemContext, false);
 
-                    _heatPump.Disconnect();
+                        _heatPump.Disconnect();
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Communicating with heat pump failed!");
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Communicating with heat pump failed!");
+                }
             }
         }
 
         private void StopEVCharging(ModbusTCPClient wallbox)
         {
             wallbox.WriteCoil(WallbeWallboxModbusUnitID, WallbeWallboxEnableChargingFlagAddress, false).GetAwaiter().GetResult();
+
+            Log.Information("EV charging stopped.");
         }
 
         private void StartEVCharging(ModbusTCPClient wallbox)
@@ -771,6 +803,8 @@ namespace UAEdgeHEMS
                 {
                     // start charging
                     wallbox.WriteCoil(WallbeWallboxModbusUnitID, WallbeWallboxEnableChargingFlagAddress, true).GetAwaiter().GetResult();
+
+                    Log.Information("EV charging started.");
                 }
             }
         }

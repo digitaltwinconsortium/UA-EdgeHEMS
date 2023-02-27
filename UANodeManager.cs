@@ -60,8 +60,10 @@ namespace UAEdgeHEMS
         private SmartMessageLanguage _sml;
 
         private ModbusTCPClient _wallbox = new ModbusTCPClient();
+        private object _wallboxLock = new object();
 
         private ModbusTCPClient _heatPump = new ModbusTCPClient();
+        private object _heatPumpLock = new object();
 
         private ModbusTCPClient _inverter = new ModbusTCPClient();
 
@@ -396,7 +398,7 @@ namespace UAEdgeHEMS
 
                 try
                 {
-                    lock (_wallbox)
+                    lock (_wallboxLock)
                     {
                         // ramp up or down EV charging, based on surplus
                         bool chargingInProgress = IsEVChargingInProgress(_wallbox);
@@ -437,7 +439,7 @@ namespace UAEdgeHEMS
                     Log.Error(ex, "EV charging control failed!");
 
                     // reconnect
-                    lock (_wallbox)
+                    lock (_wallboxLock)
                     {
                         _wallbox.Disconnect();
                         _wallbox.Connect(WallbeWallboxBaseAddress, WallbeWallboxModbusTCPPort);
@@ -534,7 +536,7 @@ namespace UAEdgeHEMS
                         registers[0] = (ushort)(buffer[1] << 8 | buffer[0]);
                         registers[1] = (ushort)(buffer[3] << 8 | buffer[2]);
 
-                        lock (_heatPump)
+                        lock (_heatPumpLock)
                         {
                             _heatPump.Connect(IDMHeatPumpBaseAddress, IDMHeatPumpModbusTCPPort);
 
@@ -690,7 +692,7 @@ namespace UAEdgeHEMS
 
                 try
                 {
-                    lock (_heatPump)
+                    lock (_heatPumpLock)
                     {
                         // init Modbus TCP client for heat pump
                         _heatPump.Connect(IDMHeatPumpBaseAddress, IDMHeatPumpModbusTCPPort);

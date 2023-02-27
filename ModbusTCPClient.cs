@@ -30,6 +30,8 @@ namespace UAEdgeHEMS
 
         private const byte _errorFlag = 0x80;
 
+        private object _lock = new object();
+
         private void HandlerError(byte errorCode)
         {
             switch (errorCode)
@@ -63,7 +65,7 @@ namespace UAEdgeHEMS
 
         public Task<byte[]> Read(byte unitID, FunctionCode function, ushort registerBaseAddress, ushort count)
         {
-            lock (this)
+            lock (_lock)
             {
                 // check funtion code
                 if ((function != FunctionCode.ReadInputRegisters)
@@ -139,7 +141,7 @@ namespace UAEdgeHEMS
             // debounce writing to not overwhelm our poor little Modbus server
             await Task.Delay(1000).ConfigureAwait(false);
 
-            lock (this)
+            lock (_lock)
             {
                 if ((11 + (values.Length * 2)) > ApplicationDataUnit.maxADU)
                 {
@@ -217,7 +219,7 @@ namespace UAEdgeHEMS
             // debounce writing to not overwhelm our poor little Modbus server
             await Task.Delay(1000).ConfigureAwait(false);
 
-            lock (this)
+            lock (_lock)
             {
                 ApplicationDataUnit aduRequest = new ApplicationDataUnit();
                 aduRequest.TransactionID = _transactionID++;

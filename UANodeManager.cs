@@ -59,8 +59,6 @@ namespace UAEdgeHEMS
 
         private SmartMessageLanguage _sml;
 
-        private object _heatPumpLock = new object();
-
         private Dictionary<string, BaseDataVariableState> _uaVariables = new();
 
         public UANodeManager(IServerInternal server, ApplicationConfiguration configuration)
@@ -133,11 +131,11 @@ namespace UAEdgeHEMS
                     SunSpecInverterModbusRegisterMapFloat.WMaxLimPctLength).GetAwaiter().GetResult();
 
                 int newLimitPercent = BitConverter.ToUInt16(ByteSwapper.Swap(WMaxLimit)) / 100;
-                Log.Information($"PV Inverter Power set to {newLimitPercent}%");
+                Log.Information($"PV InverterUpdate Power set to {newLimitPercent}%");
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Set PV Inverter Full Power failed!");
+                Log.Error(ex, "Set PV InverterUpdate Full Power failed!");
             }
             finally
             {
@@ -178,12 +176,11 @@ namespace UAEdgeHEMS
             _uaVariables["HeatPumpMode"].Value = 0.0f;
 
             // kick off our asset update background tasks
-            _ = Task.Factory.StartNew(ReadWeatherData, TaskCreationOptions.LongRunning);
-            _ = Task.Factory.StartNew(ReadInverterTags, TaskCreationOptions.LongRunning);
-            _ = Task.Factory.StartNew(ReadHeatPumpTags, TaskCreationOptions.LongRunning);
-            _ = Task.Factory.StartNew(ReadSmartMeterTags, TaskCreationOptions.LongRunning);
-            _ = Task.Factory.StartNew(ControlSurplusEnergyForHeatPump, TaskCreationOptions.LongRunning);
-            _ = Task.Factory.StartNew(ControlSmartEVCharging, TaskCreationOptions.LongRunning);
+            _ = Task.Factory.StartNew(WeatherDataUpdate, TaskCreationOptions.LongRunning);
+            _ = Task.Factory.StartNew(InverterUpdate, TaskCreationOptions.LongRunning);
+            _ = Task.Factory.StartNew(HeatPumpUpdate, TaskCreationOptions.LongRunning);
+            _ = Task.Factory.StartNew(SmartMeterUpdate, TaskCreationOptions.LongRunning);
+            _ = Task.Factory.StartNew(EVChargingUpdate, TaskCreationOptions.LongRunning);
         }
 
         private void CreateUANodes(IList<IReference> references)
@@ -202,7 +199,7 @@ namespace UAEdgeHEMS
             MethodState getAssetsMethod = CreateMethod(controlFolder, "ToggleChargeNow", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/EdgeHEMS/"));
             getAssetsMethod.OnCallMethod = new GenericMethodCalledEventHandler(ToggleChargeNow);
 
-            // create our top-level PV Inverter folder
+            // create our top-level PV InverterUpdate folder
             FolderState inverterFolder = CreateFolder(null, "PVInverter", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SunSpecInverter/"));
             inverterFolder.AddReference(ReferenceTypes.Organizes, true, ObjectIds.ObjectsFolder);
             references.Add(new NodeStateReference(ReferenceTypes.Organizes, false, inverterFolder.NodeId));
@@ -357,40 +354,7 @@ namespace UAEdgeHEMS
             return method;
         }
 
-        private ServiceResult IncrementChargingPhases(ISystemContext context, MethodState method, IList<object> inputArguments, IList<object> outputArguments)
-        {
-            // increase charing phases. They can be 1, 2 or 3. Most hybrids only charge on a single phase, most EVs with 2 or even 3 phases
-            _uaVariables["NumChargingPhases"].Value = (float)_uaVariables["NumChargingPhases"].Value + 1.0f;
-
-            if ((float)_uaVariables["NumChargingPhases"].Value > 3.0f)
-            {
-                _uaVariables["NumChargingPhases"].Value = 1.0f;
-            }
-
-            _uaVariables["NumChargingPhases"].Timestamp = DateTime.UtcNow;
-            _uaVariables["NumChargingPhases"].ClearChangeMasks(SystemContext, false);
-
-            return ServiceResult.Good;
-        }
-
-        private ServiceResult ToggleChargeNow(ISystemContext context, MethodState method, IList<object> inputArguments, IList<object> outputArguments)
-        {
-            if ((float)_uaVariables["ChargeNow"].Value == 0.0f)
-            {
-                _uaVariables["ChargeNow"].Value = 1.0f;
-            }
-            else
-            {
-                _uaVariables["ChargeNow"].Value = 0.0f;
-            }
-
-            _uaVariables["ChargeNow"].Timestamp = DateTime.UtcNow;
-            _uaVariables["ChargeNow"].ClearChangeMasks(SystemContext, false);
-
-            return ServiceResult.Good;
-        }
-
-        private void ControlSmartEVCharging()
+        private void EVChargingUpdate()
         {
             Log.Information("Started Control Smart EV Charging Thread.");
 
@@ -453,7 +417,7 @@ namespace UAEdgeHEMS
             }
         }
 
-        private void ReadSmartMeterTags()
+        private void SmartMeterUpdate()
         {
             Log.Information("Started Read Smart Meter Tags Thread.");
 
@@ -518,65 +482,15 @@ namespace UAEdgeHEMS
             }
         }
 
-        private void ControlSurplusEnergyForHeatPump()
+        private void InverterUpdate()
         {
-            Log.Information("Started Control Surplus Energy For Heat Pump Thread.");
+            Log.Information("Started Read InverterUpdate Tags Thread.");
 
             while (true)
             {
                 Thread.Sleep(15000);
 
-                Log.Information("Executing Control Surplus Energy For Heat Pump.");
-
-                lock (_heatPumpLock)
-                {
-                    ModbusTCPClient heatPump = new();
-
-                    try
-                    {
-                        // set the surplus for our heatpump in kW
-                        float surplusPowerKW = -((float)_uaVariables["CurrentPower"].Value / 1000.0f);
-                        float heatPumpPowerRequirementKW = (float)_uaVariables["HeatPumpCurrentPowerConsumption"].Value;
-                        if (surplusPowerKW > heatPumpPowerRequirementKW)
-                        {
-                            byte[] buffer = new byte[4];
-                            BitConverter.TryWriteBytes(buffer, surplusPowerKW);
-                            ushort[] registers = new ushort[2];
-                            registers[0] = (ushort)(buffer[1] << 8 | buffer[0]);
-                            registers[1] = (ushort)(buffer[3] << 8 | buffer[2]);
-
-                            heatPump.Connect(IDMHeatPumpBaseAddress, IDMHeatPumpModbusTCPPort);
-
-                            heatPump.WriteHoldingRegisters(
-                                IDMHeatPumpModbusUnitID,
-                                IDMHeatPumpPVSurplus,
-                                registers).GetAwaiter().GetResult();
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Error(ex, "Surplus energy control for heat pump failed!");
-                    }
-                    finally
-                    {
-                        if (heatPump.IsConnected())
-                        {
-                            heatPump.Disconnect();
-                        }
-                    }
-                }
-            }
-        }
-
-        private void ReadInverterTags()
-        {
-            Log.Information("Started Read Inverter Tags Thread.");
-
-            while (true)
-            {
-                Thread.Sleep(15000);
-
-                Log.Information("Executing Read Inverter Tags.");
+                Log.Information("Executing Read InverterUpdate Tags.");
 
                 try
                 {
@@ -623,7 +537,7 @@ namespace UAEdgeHEMS
             }
         }
 
-        private void ReadWeatherData()
+        private void WeatherDataUpdate()
         {
             Log.Information("Started Read Weather Data Thread.");
 
@@ -692,7 +606,7 @@ namespace UAEdgeHEMS
             }
         }
 
-        private void ReadHeatPumpTags()
+        private void HeatPumpUpdate()
         {
             Log.Information("Started Read Heat Pump Tags Thread.");
 
@@ -702,111 +616,154 @@ namespace UAEdgeHEMS
 
                 Log.Information("Executing Read Heat Pump Tags.");
 
-                lock (_heatPumpLock)
-                {
-                    ModbusTCPClient heatPump = new();
+                ModbusTCPClient heatPump = new();
 
-                    try
+                try
+                {
+                    // init Modbus TCP client for heat pump
+                    heatPump.Connect(IDMHeatPumpBaseAddress, IDMHeatPumpModbusTCPPort);
+
+                    // read the heat pump registers
+                    _uaVariables["HeatPumpOutsideTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(heatPump.Read(
+                        IDMHeatPumpModbusUnitID,
+                        ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                        IDMHeatPumpOutsideTemp,
+                        2).GetAwaiter().GetResult(), true));
+
+                    _uaVariables["HeatPumpOutsideTemp"].Timestamp = DateTime.UtcNow;
+                    _uaVariables["HeatPumpOutsideTemp"].ClearChangeMasks(SystemContext, false);
+
+                    Thread.Sleep(250);
+
+                    _uaVariables["HeatPumpHeatingWaterATemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(heatPump.Read(
+                        IDMHeatPumpModbusUnitID,
+                        ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                        IDMHeatPumpHeatingWaterATemp,
+                        2).GetAwaiter().GetResult(), true));
+
+                    _uaVariables["HeatPumpHeatingWaterATemp"].Timestamp = DateTime.UtcNow;
+                    _uaVariables["HeatPumpHeatingWaterATemp"].ClearChangeMasks(SystemContext, false);
+
+                    Thread.Sleep(250);
+
+                    _uaVariables["HeatPumpHeatingWaterBTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(heatPump.Read(
+                        IDMHeatPumpModbusUnitID,
+                        ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                        IDMHeatPumpHeatingWaterBTemp,
+                        2).GetAwaiter().GetResult(), true));
+
+                    _uaVariables["HeatPumpHeatingWaterBTemp"].Timestamp = DateTime.UtcNow;
+                    _uaVariables["HeatPumpHeatingWaterBTemp"].ClearChangeMasks(SystemContext, false);
+
+                    Thread.Sleep(250);
+
+                    _uaVariables["HeatPumpHeatingWaterCTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(heatPump.Read(
+                        IDMHeatPumpModbusUnitID,
+                        ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                        IDMHeatPumpHeatingWaterCTemp,
+                        2).GetAwaiter().GetResult(), true));
+
+                    _uaVariables["HeatPumpHeatingWaterCTemp"].Timestamp = DateTime.UtcNow;
+                    _uaVariables["HeatPumpHeatingWaterCTemp"].ClearChangeMasks(SystemContext, false);
+
+                    Thread.Sleep(250);
+
+                    _uaVariables["HeatPumpTapWaterTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(heatPump.Read(
+                        IDMHeatPumpModbusUnitID,
+                        ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                        IDMHeatPumpTapWaterTemp,
+                        2).GetAwaiter().GetResult(), true));
+
+                    _uaVariables["HeatPumpTapWaterTemp"].Timestamp = DateTime.UtcNow;
+                    _uaVariables["HeatPumpTapWaterTemp"].ClearChangeMasks(SystemContext, false);
+
+                    Thread.Sleep(250);
+
+                    _uaVariables["HeatPumpCurrentPowerConsumption"].Value = BitConverter.ToSingle(ByteSwapper.Swap(heatPump.Read(
+                        IDMHeatPumpModbusUnitID,
+                        ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                        IDMHeatPumpCurrentPowerConsumption,
+                        2).GetAwaiter().GetResult(), true));
+
+                    _uaVariables["HeatPumpCurrentPowerConsumption"].Timestamp = DateTime.UtcNow;
+                    _uaVariables["HeatPumpCurrentPowerConsumption"].ClearChangeMasks(SystemContext, false);
+
+                    Thread.Sleep(250);
+
+                    _uaVariables["HeatPumpMode"].Value = (float)BitConverter.ToUInt16(ByteSwapper.Swap(heatPump.Read(
+                        IDMHeatPumpModbusUnitID,
+                        ModbusTCPClient.FunctionCode.ReadInputRegisters,
+                        IDMHeatPumpMode,
+                        1).GetAwaiter().GetResult(), true));
+
+                    _uaVariables["HeatPumpMode"].Timestamp = DateTime.UtcNow;
+                    _uaVariables["HeatPumpMode"].ClearChangeMasks(SystemContext, false);
+
+                    // set the surplus for our heatpump in kW
+                    float surplusPowerKW = -((float)_uaVariables["CurrentPower"].Value / 1000.0f);
+                    float heatPumpPowerRequirementKW = (float)_uaVariables["HeatPumpCurrentPowerConsumption"].Value;
+                    if (surplusPowerKW > heatPumpPowerRequirementKW)
                     {
-                        // init Modbus TCP client for heat pump
+                        byte[] buffer = new byte[4];
+                        BitConverter.TryWriteBytes(buffer, surplusPowerKW);
+                        ushort[] registers = new ushort[2];
+                        registers[0] = (ushort)(buffer[1] << 8 | buffer[0]);
+                        registers[1] = (ushort)(buffer[3] << 8 | buffer[2]);
+
                         heatPump.Connect(IDMHeatPumpBaseAddress, IDMHeatPumpModbusTCPPort);
 
-                        // read the heat pump registers
-                        _uaVariables["HeatPumpOutsideTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(heatPump.Read(
+                        heatPump.WriteHoldingRegisters(
                             IDMHeatPumpModbusUnitID,
-                            ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                            IDMHeatPumpOutsideTemp,
-                            2).GetAwaiter().GetResult(), true));
-
-                        _uaVariables["HeatPumpOutsideTemp"].Timestamp = DateTime.UtcNow;
-                        _uaVariables["HeatPumpOutsideTemp"].ClearChangeMasks(SystemContext, false);
-
-                        Thread.Sleep(250);
-
-                        _uaVariables["HeatPumpHeatingWaterATemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(heatPump.Read(
-                            IDMHeatPumpModbusUnitID,
-                            ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                            IDMHeatPumpHeatingWaterATemp,
-                            2).GetAwaiter().GetResult(), true));
-
-                        _uaVariables["HeatPumpHeatingWaterATemp"].Timestamp = DateTime.UtcNow;
-                        _uaVariables["HeatPumpHeatingWaterATemp"].ClearChangeMasks(SystemContext, false);
-
-                        Thread.Sleep(250);
-
-                        _uaVariables["HeatPumpHeatingWaterBTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(heatPump.Read(
-                            IDMHeatPumpModbusUnitID,
-                            ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                            IDMHeatPumpHeatingWaterBTemp,
-                            2).GetAwaiter().GetResult(), true));
-
-                        _uaVariables["HeatPumpHeatingWaterBTemp"].Timestamp = DateTime.UtcNow;
-                        _uaVariables["HeatPumpHeatingWaterBTemp"].ClearChangeMasks(SystemContext, false);
-
-                        Thread.Sleep(250);
-
-                        _uaVariables["HeatPumpHeatingWaterCTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(heatPump.Read(
-                           IDMHeatPumpModbusUnitID,
-                           ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                           IDMHeatPumpHeatingWaterCTemp,
-                           2).GetAwaiter().GetResult(), true));
-
-                        _uaVariables["HeatPumpHeatingWaterCTemp"].Timestamp = DateTime.UtcNow;
-                        _uaVariables["HeatPumpHeatingWaterCTemp"].ClearChangeMasks(SystemContext, false);
-
-                        Thread.Sleep(250);
-
-                        _uaVariables["HeatPumpTapWaterTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(heatPump.Read(
-                           IDMHeatPumpModbusUnitID,
-                           ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                           IDMHeatPumpTapWaterTemp,
-                           2).GetAwaiter().GetResult(), true));
-
-                        _uaVariables["HeatPumpTapWaterTemp"].Timestamp = DateTime.UtcNow;
-                        _uaVariables["HeatPumpTapWaterTemp"].ClearChangeMasks(SystemContext, false);
-
-                        Thread.Sleep(250);
-
-                        _uaVariables["HeatPumpCurrentPowerConsumption"].Value = BitConverter.ToSingle(ByteSwapper.Swap(heatPump.Read(
-                            IDMHeatPumpModbusUnitID,
-                            ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                            IDMHeatPumpCurrentPowerConsumption,
-                            2).GetAwaiter().GetResult(), true));
-
-                        _uaVariables["HeatPumpCurrentPowerConsumption"].Timestamp = DateTime.UtcNow;
-                        _uaVariables["HeatPumpCurrentPowerConsumption"].ClearChangeMasks(SystemContext, false);
-
-                        Thread.Sleep(250);
-
-                        _uaVariables["HeatPumpMode"].Value = (float)BitConverter.ToUInt16(ByteSwapper.Swap(heatPump.Read(
-                           IDMHeatPumpModbusUnitID,
-                           ModbusTCPClient.FunctionCode.ReadInputRegisters,
-                           IDMHeatPumpMode,
-                           1).GetAwaiter().GetResult(), true));
-
-                        _uaVariables["HeatPumpMode"].Timestamp = DateTime.UtcNow;
-                        _uaVariables["HeatPumpMode"].ClearChangeMasks(SystemContext, false);
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Error(ex, "Communicating with heat pump failed!");
-                    }
-                    finally
-                    {
-                        if (heatPump.IsConnected())
-                        {
-                            heatPump.Disconnect();
-                        }
+                            IDMHeatPumpPVSurplus,
+                            registers).GetAwaiter().GetResult();
                     }
                 }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Communicating with heat pump failed!");
+                }
+                finally
+                {
+                    if (heatPump.IsConnected())
+                    {
+                        heatPump.Disconnect();
+                    }
+                }
+
             }
         }
 
-        private void StopEVCharging(ModbusTCPClient wallbox)
+        private ServiceResult IncrementChargingPhases(ISystemContext context, MethodState method, IList<object> inputArguments, IList<object> outputArguments)
         {
-            wallbox.WriteCoil(WallbeWallboxModbusUnitID, WallbeWallboxEnableChargingFlagAddress, false).GetAwaiter().GetResult();
+            // increase charing phases. They can be 1, 2 or 3. Most hybrids only charge on a single phase, most EVs with 2 or even 3 phases
+            _uaVariables["NumChargingPhases"].Value = (float)_uaVariables["NumChargingPhases"].Value + 1.0f;
 
-            Log.Information("EV charging stopped.");
+            if ((float)_uaVariables["NumChargingPhases"].Value > 3.0f)
+            {
+                _uaVariables["NumChargingPhases"].Value = 1.0f;
+            }
+
+            _uaVariables["NumChargingPhases"].Timestamp = DateTime.UtcNow;
+            _uaVariables["NumChargingPhases"].ClearChangeMasks(SystemContext, false);
+
+            return ServiceResult.Good;
+        }
+
+        private ServiceResult ToggleChargeNow(ISystemContext context, MethodState method, IList<object> inputArguments, IList<object> outputArguments)
+        {
+            if ((float)_uaVariables["ChargeNow"].Value == 0.0f)
+            {
+                _uaVariables["ChargeNow"].Value = 1.0f;
+            }
+            else
+            {
+                _uaVariables["ChargeNow"].Value = 0.0f;
+            }
+
+            _uaVariables["ChargeNow"].Timestamp = DateTime.UtcNow;
+            _uaVariables["ChargeNow"].ClearChangeMasks(SystemContext, false);
+
+            return ServiceResult.Good;
         }
 
         private void StartEVCharging(ModbusTCPClient wallbox)
@@ -828,6 +785,13 @@ namespace UAEdgeHEMS
                     Log.Information("EV charging started.");
                 }
             }
+        }
+
+        private void StopEVCharging(ModbusTCPClient wallbox)
+        {
+            wallbox.WriteCoil(WallbeWallboxModbusUnitID, WallbeWallboxEnableChargingFlagAddress, false).GetAwaiter().GetResult();
+
+            Log.Information("EV charging stopped.");
         }
 
         private bool IsEVConnected(ModbusTCPClient wallbox)

@@ -59,8 +59,11 @@ namespace UAEdgeHEMS
 
         public void Disconnect()
         {
-            _tcpClient.Close();
-            _tcpClient = null;
+            if (_tcpClient != null)
+            {
+                _tcpClient.Close();
+                _tcpClient = null;
+            }
         }
 
         public Task<byte[]> Read(byte unitID, FunctionCode function, ushort registerBaseAddress, ushort count)

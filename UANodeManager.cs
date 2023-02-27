@@ -59,13 +59,7 @@ namespace UAEdgeHEMS
 
         private SmartMessageLanguage _sml;
 
-        private ModbusTCPClient _wallbox = new ModbusTCPClient();
-        private object _wallboxLock = new object();
-
-        private ModbusTCPClient _heatPump = new ModbusTCPClient();
         private object _heatPumpLock = new object();
-
-        private ModbusTCPClient _inverter = new ModbusTCPClient();
 
         private Dictionary<string, BaseDataVariableState> _uaVariables = new();
 
@@ -86,15 +80,7 @@ namespace UAEdgeHEMS
 
             NamespaceUris = namespaceUris;
 
-            // init Modbus TCP client for wallbox
-            _wallbox.Connect(WallbeWallboxBaseAddress, WallbeWallboxModbusTCPPort);
-
-            // init Modbus TCP client for inverter
-            _inverter.Connect(FroniusInverterBaseAddress, FroniusInverterModbusTCPPort);
-
             SetPVInverterToFullPower();
-
-            _inverter.Disconnect();
 
             // print a list of all available serial ports for convenience
             string[] ports = SerialPort.GetPortNames();
@@ -117,31 +103,49 @@ namespace UAEdgeHEMS
 
         private void SetPVInverterToFullPower()
         {
-            // read current inverter power limit (percentage)
-            byte[] WMaxLimit = _inverter.Read(
-                FroniusInverterModbusUnitID,
-                ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
-                SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
-                SunSpecInverterModbusRegisterMapFloat.WMaxLimPctLength).GetAwaiter().GetResult();
+            ModbusTCPClient inverter = new();
 
-            int existingLimitPercent = BitConverter.ToUInt16(ByteSwapper.Swap(WMaxLimit)) / 100;
+            try
+            {
+                inverter.Connect(FroniusInverterBaseAddress, FroniusInverterModbusTCPPort);
 
-            // go to the maximum grid export power limit with immediate effect without timeout
-            ushort InverterPowerOutputPercent = (ushort)((GridExportPowerLimit / FroniusSymoMaxPower) * 100);
-            _inverter.WriteHoldingRegisters(
-                FroniusInverterModbusUnitID,
-                SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
-                new ushort[] { (ushort)(InverterPowerOutputPercent * 100), 0, 0, 0, 1 }).GetAwaiter().GetResult();
+                // read current inverter power limit (percentage)
+                byte[] WMaxLimit = inverter.Read(
+                    FroniusInverterModbusUnitID,
+                    ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
+                    SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
+                    SunSpecInverterModbusRegisterMapFloat.WMaxLimPctLength).GetAwaiter().GetResult();
 
-            // check new setting
-            WMaxLimit = _inverter.Read(
-                FroniusInverterModbusUnitID,
-                ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
-                SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
-                SunSpecInverterModbusRegisterMapFloat.WMaxLimPctLength).GetAwaiter().GetResult();
+                int existingLimitPercent = BitConverter.ToUInt16(ByteSwapper.Swap(WMaxLimit)) / 100;
 
-            int newLimitPercent = BitConverter.ToUInt16(ByteSwapper.Swap(WMaxLimit)) / 100;
-            Log.Information($"PV Inverter Power set to {newLimitPercent}%");
+                // go to the maximum grid export power limit with immediate effect without timeout
+                ushort InverterPowerOutputPercent = (ushort)((GridExportPowerLimit / FroniusSymoMaxPower) * 100);
+                inverter.WriteHoldingRegisters(
+                    FroniusInverterModbusUnitID,
+                    SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
+                    new ushort[] { (ushort)(InverterPowerOutputPercent * 100), 0, 0, 0, 1 }).GetAwaiter().GetResult();
+
+                // check new setting
+                WMaxLimit = inverter.Read(
+                    FroniusInverterModbusUnitID,
+                    ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
+                    SunSpecInverterModbusRegisterMapFloat.InverterBaseAddress + SunSpecInverterModbusRegisterMapFloat.WMaxLimPctOffset,
+                    SunSpecInverterModbusRegisterMapFloat.WMaxLimPctLength).GetAwaiter().GetResult();
+
+                int newLimitPercent = BitConverter.ToUInt16(ByteSwapper.Swap(WMaxLimit)) / 100;
+                Log.Information($"PV Inverter Power set to {newLimitPercent}%");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Set PV Inverter Full Power failed!");
+            }
+            finally
+            {
+                if (inverter.IsConnected())
+                {
+                    inverter.Disconnect();
+                }
+            }
         }
 
         public override NodeId New(ISystemContext context, NodeState node)
@@ -396,53 +400,54 @@ namespace UAEdgeHEMS
 
                 Log.Information("Executing Control Smart EV Charging.");
 
+                ModbusTCPClient wallbox = new();
+
                 try
                 {
-                    lock (_wallboxLock)
+                    wallbox.Connect(WallbeWallboxBaseAddress, WallbeWallboxModbusTCPPort);
+
+                    // ramp up or down EV charging, based on surplus
+                    bool chargingInProgress = IsEVChargingInProgress(wallbox);
+                    _uaVariables["EVChargingInProgress"].Value = chargingInProgress ? 1.0f : 0.0f;
+                    _uaVariables["EVChargingInProgress"].Timestamp = DateTime.UtcNow;
+                    _uaVariables["EVChargingInProgress"].ClearChangeMasks(SystemContext, false);
+
+                    if (chargingInProgress)
                     {
-                        // ramp up or down EV charging, based on surplus
-                        bool chargingInProgress = IsEVChargingInProgress(_wallbox);
-                        _uaVariables["EVChargingInProgress"].Value = chargingInProgress ? 1.0f : 0.0f;
-                        _uaVariables["EVChargingInProgress"].Timestamp = DateTime.UtcNow;
-                        _uaVariables["EVChargingInProgress"].ClearChangeMasks(SystemContext, false);
+                        // read current current (in Amps)
+                        ushort wallbeWallboxCurrentCurrentSetting = BitConverter.ToUInt16(ByteSwapper.Swap(wallbox.Read(
+                            WallbeWallboxModbusUnitID,
+                            ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
+                            WallbeWallboxCurrentCurrentSettingAddress,
+                            1).GetAwaiter().GetResult()));
+                        _uaVariables["WallboxCurrent"].Value = (float)wallbeWallboxCurrentCurrentSetting;
 
-                        if (chargingInProgress)
-                        {
-                            // read current current (in Amps)
-                            ushort wallbeWallboxCurrentCurrentSetting = BitConverter.ToUInt16(ByteSwapper.Swap(_wallbox.Read(
-                                WallbeWallboxModbusUnitID,
-                                ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
-                                WallbeWallboxCurrentCurrentSettingAddress,
-                                1).GetAwaiter().GetResult()));
-                            _uaVariables["WallboxCurrent"].Value = (float)wallbeWallboxCurrentCurrentSetting;
-
-                            OptimizeEVCharging(_wallbox, (float)_uaVariables["CurrentPower"].Value);
-                        }
-                        else
-                        {
-                            _uaVariables["WallboxCurrent"].Value = 0.0f;
-
-                            // check if we should start charging our EV with the surplus power, but we need at least 6A of current per charing phase
-                            // or the user set the "charge now" flag via direct method
-                            if ((((float)_uaVariables["CurrentPower"].Value / 230.0f) < ((float)_uaVariables["NumChargingPhases"].Value * -6.0f)) || ((float)_uaVariables["ChargeNow"].Value == 1.0f))
-                            {
-                                StartEVCharging(_wallbox);
-                            }
-                        }
-
-                        _uaVariables["WallboxCurrent"].Timestamp = DateTime.UtcNow;
-                        _uaVariables["WallboxCurrent"].ClearChangeMasks(SystemContext, false);
+                        OptimizeEVCharging(wallbox, (float)_uaVariables["CurrentPower"].Value);
                     }
+                    else
+                    {
+                        _uaVariables["WallboxCurrent"].Value = 0.0f;
+
+                        // check if we should start charging our EV with the surplus power, but we need at least 6A of current per charing phase
+                        // or the user set the "charge now" flag via direct method
+                        if ((((float)_uaVariables["CurrentPower"].Value / 230.0f) < ((float)_uaVariables["NumChargingPhases"].Value * -6.0f)) || ((float)_uaVariables["ChargeNow"].Value == 1.0f))
+                        {
+                            StartEVCharging(wallbox);
+                        }
+                    }
+
+                    _uaVariables["WallboxCurrent"].Timestamp = DateTime.UtcNow;
+                    _uaVariables["WallboxCurrent"].ClearChangeMasks(SystemContext, false);
                 }
                 catch (Exception ex)
                 {
                     Log.Error(ex, "EV charging control failed!");
-
-                    // reconnect
-                    lock (_wallboxLock)
+                }
+                finally
+                {
+                    if (wallbox.IsConnected())
                     {
-                        _wallbox.Disconnect();
-                        _wallbox.Connect(WallbeWallboxBaseAddress, WallbeWallboxModbusTCPPort);
+                        wallbox.Disconnect();
                     }
                 }
             }
@@ -523,35 +528,42 @@ namespace UAEdgeHEMS
 
                 Log.Information("Executing Control Surplus Energy For Heat Pump.");
 
-                try
+                lock (_heatPumpLock)
                 {
-                    // set the surplus for our heatpump in kW
-                    float surplusPowerKW = -((float)_uaVariables["CurrentPower"].Value / 1000.0f);
-                    float heatPumpPowerRequirementKW = (float)_uaVariables["HeatPumpCurrentPowerConsumption"].Value;
-                    if (surplusPowerKW > heatPumpPowerRequirementKW)
+                    ModbusTCPClient heatPump = new();
+
+                    try
                     {
-                        byte[] buffer = new byte[4];
-                        BitConverter.TryWriteBytes(buffer, surplusPowerKW);
-                        ushort[] registers = new ushort[2];
-                        registers[0] = (ushort)(buffer[1] << 8 | buffer[0]);
-                        registers[1] = (ushort)(buffer[3] << 8 | buffer[2]);
-
-                        lock (_heatPumpLock)
+                        // set the surplus for our heatpump in kW
+                        float surplusPowerKW = -((float)_uaVariables["CurrentPower"].Value / 1000.0f);
+                        float heatPumpPowerRequirementKW = (float)_uaVariables["HeatPumpCurrentPowerConsumption"].Value;
+                        if (surplusPowerKW > heatPumpPowerRequirementKW)
                         {
-                            _heatPump.Connect(IDMHeatPumpBaseAddress, IDMHeatPumpModbusTCPPort);
+                            byte[] buffer = new byte[4];
+                            BitConverter.TryWriteBytes(buffer, surplusPowerKW);
+                            ushort[] registers = new ushort[2];
+                            registers[0] = (ushort)(buffer[1] << 8 | buffer[0]);
+                            registers[1] = (ushort)(buffer[3] << 8 | buffer[2]);
 
-                            _heatPump.WriteHoldingRegisters(
+                            heatPump.Connect(IDMHeatPumpBaseAddress, IDMHeatPumpModbusTCPPort);
+
+                            heatPump.WriteHoldingRegisters(
                                 IDMHeatPumpModbusUnitID,
                                 IDMHeatPumpPVSurplus,
                                 registers).GetAwaiter().GetResult();
-
-                            _heatPump.Disconnect();
                         }
                     }
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "Surplus energy control for heat pump failed!");
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "Surplus energy control for heat pump failed!");
+                    }
+                    finally
+                    {
+                        if (heatPump.IsConnected())
+                        {
+                            heatPump.Disconnect();
+                        }
+                    }
                 }
             }
         }
@@ -690,15 +702,17 @@ namespace UAEdgeHEMS
 
                 Log.Information("Executing Read Heat Pump Tags.");
 
-                try
+                lock (_heatPumpLock)
                 {
-                    lock (_heatPumpLock)
+                    ModbusTCPClient heatPump = new();
+
+                    try
                     {
                         // init Modbus TCP client for heat pump
-                        _heatPump.Connect(IDMHeatPumpBaseAddress, IDMHeatPumpModbusTCPPort);
+                        heatPump.Connect(IDMHeatPumpBaseAddress, IDMHeatPumpModbusTCPPort);
 
                         // read the heat pump registers
-                        _uaVariables["HeatPumpOutsideTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
+                        _uaVariables["HeatPumpOutsideTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(heatPump.Read(
                             IDMHeatPumpModbusUnitID,
                             ModbusTCPClient.FunctionCode.ReadInputRegisters,
                             IDMHeatPumpOutsideTemp,
@@ -709,7 +723,7 @@ namespace UAEdgeHEMS
 
                         Thread.Sleep(250);
 
-                        _uaVariables["HeatPumpHeatingWaterATemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
+                        _uaVariables["HeatPumpHeatingWaterATemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(heatPump.Read(
                             IDMHeatPumpModbusUnitID,
                             ModbusTCPClient.FunctionCode.ReadInputRegisters,
                             IDMHeatPumpHeatingWaterATemp,
@@ -720,7 +734,7 @@ namespace UAEdgeHEMS
 
                         Thread.Sleep(250);
 
-                        _uaVariables["HeatPumpHeatingWaterBTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
+                        _uaVariables["HeatPumpHeatingWaterBTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(heatPump.Read(
                             IDMHeatPumpModbusUnitID,
                             ModbusTCPClient.FunctionCode.ReadInputRegisters,
                             IDMHeatPumpHeatingWaterBTemp,
@@ -731,7 +745,7 @@ namespace UAEdgeHEMS
 
                         Thread.Sleep(250);
 
-                        _uaVariables["HeatPumpHeatingWaterCTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
+                        _uaVariables["HeatPumpHeatingWaterCTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(heatPump.Read(
                            IDMHeatPumpModbusUnitID,
                            ModbusTCPClient.FunctionCode.ReadInputRegisters,
                            IDMHeatPumpHeatingWaterCTemp,
@@ -742,7 +756,7 @@ namespace UAEdgeHEMS
 
                         Thread.Sleep(250);
 
-                        _uaVariables["HeatPumpTapWaterTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
+                        _uaVariables["HeatPumpTapWaterTemp"].Value = BitConverter.ToSingle(ByteSwapper.Swap(heatPump.Read(
                            IDMHeatPumpModbusUnitID,
                            ModbusTCPClient.FunctionCode.ReadInputRegisters,
                            IDMHeatPumpTapWaterTemp,
@@ -753,7 +767,7 @@ namespace UAEdgeHEMS
 
                         Thread.Sleep(250);
 
-                        _uaVariables["HeatPumpCurrentPowerConsumption"].Value = BitConverter.ToSingle(ByteSwapper.Swap(_heatPump.Read(
+                        _uaVariables["HeatPumpCurrentPowerConsumption"].Value = BitConverter.ToSingle(ByteSwapper.Swap(heatPump.Read(
                             IDMHeatPumpModbusUnitID,
                             ModbusTCPClient.FunctionCode.ReadInputRegisters,
                             IDMHeatPumpCurrentPowerConsumption,
@@ -764,7 +778,7 @@ namespace UAEdgeHEMS
 
                         Thread.Sleep(250);
 
-                        _uaVariables["HeatPumpMode"].Value = (float)BitConverter.ToUInt16(ByteSwapper.Swap(_heatPump.Read(
+                        _uaVariables["HeatPumpMode"].Value = (float)BitConverter.ToUInt16(ByteSwapper.Swap(heatPump.Read(
                            IDMHeatPumpModbusUnitID,
                            ModbusTCPClient.FunctionCode.ReadInputRegisters,
                            IDMHeatPumpMode,
@@ -772,13 +786,18 @@ namespace UAEdgeHEMS
 
                         _uaVariables["HeatPumpMode"].Timestamp = DateTime.UtcNow;
                         _uaVariables["HeatPumpMode"].ClearChangeMasks(SystemContext, false);
-
-                        _heatPump.Disconnect();
                     }
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "Communicating with heat pump failed!");
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "Communicating with heat pump failed!");
+                    }
+                    finally
+                    {
+                        if (heatPump.IsConnected())
+                        {
+                            heatPump.Disconnect();
+                        }
+                    }
                 }
             }
         }
@@ -898,8 +917,8 @@ namespace UAEdgeHEMS
                 case 'B': return false; // vehicle connected, not charging
                 case 'C': return true;  // vehicle connected, charging, no ventilation required
                 case 'D': return true;  // vehicle connected, charging, ventilation required
-                case 'E': return false; // _wallbox has no power
-                case 'F': return false; // _wallbox not available
+                case 'E': return false; // wallbox has no power
+                case 'F': return false; // wallbox not available
                 default: return false;
             }
         }

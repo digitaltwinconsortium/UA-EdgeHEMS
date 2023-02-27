@@ -57,6 +57,11 @@ namespace UAEdgeHEMS
             _tcpClient.GetStream().WriteTimeout = _timeout;
         }
 
+        public bool IsConnected()
+        {
+            return _tcpClient != null;
+        }
+
         public void Disconnect()
         {
             if (_tcpClient != null)

@@ -362,8 +362,6 @@ namespace UAEdgeHEMS
             {
                 Thread.Sleep(15000);
 
-                Log.Information("Executing Control Smart EV Charging.");
-
                 ModbusTCPClient wallbox = new();
 
                 try
@@ -424,8 +422,6 @@ namespace UAEdgeHEMS
             while (true)
             {
                 Thread.Sleep(15000);
-
-                Log.Information("Executing Read Smart Meter Tags.");
 
                 try
                 {
@@ -490,8 +486,6 @@ namespace UAEdgeHEMS
             {
                 Thread.Sleep(15000);
 
-                Log.Information("Executing Read InverterUpdate Tags.");
-
                 try
                 {
                     using (HttpClient webClient = new())
@@ -544,8 +538,6 @@ namespace UAEdgeHEMS
             while (true)
             {
                 Thread.Sleep(15000);
-
-                Log.Information("Executing Read Weather Data.");
 
                 try
                 {
@@ -613,8 +605,6 @@ namespace UAEdgeHEMS
             while (true)
             {
                 Thread.Sleep(15000);
-
-                Log.Information("Executing Read Heat Pump Tags.");
 
                 ModbusTCPClient heatPump = new();
 

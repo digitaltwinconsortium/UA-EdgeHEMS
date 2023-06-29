@@ -266,7 +266,7 @@ namespace UAEdgeHEMS
             _uaVariables.Add("WindSpeed", CreateVariable(weatherFolder, "WindSpeed", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/OpenWeatherMap/")));
             _uaVariables.Add("CloudinessForecast", CreateVariable(weatherFolder, "CloudinessForecast", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/OpenWeatherMap/"), true));
 
-            // add everyting to our nodeset
+            // add everything to our nodeset
             AddPredefinedNode(SystemContext, controlFolder);
             AddPredefinedNode(SystemContext, inverterFolder);
             AddPredefinedNode(SystemContext, smartMeterFolder);

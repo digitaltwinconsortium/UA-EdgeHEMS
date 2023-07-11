@@ -692,7 +692,7 @@ namespace UAEdgeHEMS
                     // set the surplus for our heatpump in kW
                     float surplusPowerKW = -((float)_uaVariables["CurrentPower"].Value / 1000.0f);
                     float heatPumpPowerRequirementKW = (float)_uaVariables["HeatPumpCurrentPowerConsumption"].Value;
-                    if (surplusPowerKW > heatPumpPowerRequirementKW)
+                    //if (surplusPowerKW > heatPumpPowerRequirementKW)
                     {
                         byte[] buffer = new byte[4];
                         BitConverter.TryWriteBytes(buffer, surplusPowerKW);

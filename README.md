@@ -11,7 +11,7 @@ Simply run the pre-built containers on a Docker-enabled computer, e.g. for Raspb
 This will expose the OPC UA server on the default OPC UA port of 4840 and also make any USB serial devices available in the container (for reading out smart meters, etc.).
 
 ## Future Extensions
-As a next step, the connected EV battery will be used as an additional energy source during the night via Vechile-to-Home (V2H) leveraging EEBUS (see seperate EEBus.Net repo for a reference implementation).
+As a next step, the connected EV battery will be used as an additional energy source during the night via Vechile-to-Home (V2H) leveraging EEBUS (see [seperate EEBus.Net repo](https://github.com/digitaltwinconsortium/EEBUS.Net) for a reference implementation).
 
 ## Telemetry Data Captured
 1. Weather data from [www.openweathermap.org](http://www.openweathermap.org), as the weather impacts PV performance.

@@ -6,7 +6,7 @@ This Home Energy Management System (HEMS) is an OPC UA Server capturing energy t
 
 Simply run the pre-built containers on a Docker-enabled computer, e.g. for RaspberryPi4:
 
-`docker run -itd -p 4840:4840 --device=/dev/ttyUSB0 --restart=always ghcr.io/barnstee/ua-edgehems-arm64:latest`
+`docker run -itd -p 4840:4840 --device=/dev/ttyUSB0 --restart=always ghcr.io/digitaltwinconsortium/ua-edgehems-arm64:latest`
 
 This will expose the OPC UA server on the default OPC UA port of 4840 and also make any USB serial devices available in the container (for reading out smart meters, etc.).
 

@@ -52,6 +52,7 @@ namespace UAEdgeHEMS
             // create OPC UA cert validator
             App.ApplicationConfiguration.CertificateValidator = new CertificateValidator();
             App.ApplicationConfiguration.CertificateValidator.CertificateValidation += new CertificateValidationEventHandler(OPCUAClientCertificateValidationCallback);
+            App.ApplicationConfiguration.CertificateValidator.Update(App.ApplicationConfiguration.SecurityConfiguration).GetAwaiter().GetResult();
 
             // start the server
             await App.Start(new UAServer()).ConfigureAwait(false);

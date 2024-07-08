@@ -1,6 +1,6 @@
 # Home Energy Management System with an OPC UA Server Interface
 
-This Home Energy Management System (HEMS) is an OPC UA Server capturing energy telemetry data from a photovoltaik system and a smart meter and controlling an EV wallbox and heat pump with the surplus energy available from local production. This is running in Docker containers (pre-built Intel x64 and ARMx64 containers are available). 
+This Home Energy Management System (HEMS) is an OPC UA Server capturing energy telemetry data from a photovoltaik system and a smart energy meter and controlling an EV wallbox and heat pump with the surplus energy available from local production. This is running in Docker containers (pre-built Intel x64 and ARMx64 containers are available). 
 
 ## Running UA-EdgeHEMS
 

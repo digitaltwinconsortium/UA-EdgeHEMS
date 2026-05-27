@@ -43,19 +43,19 @@ namespace UAEdgeHEMS
                 ConfigSectionName = "Ua.Edge.HEMS"
             };
 
-            await App.LoadApplicationConfiguration(false).ConfigureAwait(false);
+            await App.LoadApplicationConfigurationAsync(false).ConfigureAwait(false);
 
-            await App.CheckApplicationInstanceCertificate(false, 0).ConfigureAwait(false);
+            await App.CheckApplicationInstanceCertificatesAsync(false, 0).ConfigureAwait(false);
 
             Utils.Tracing.TraceEventHandler += new EventHandler<TraceEventArgs>(OpcStackLoggingHandler);
 
             // create OPC UA cert validator
             App.ApplicationConfiguration.CertificateValidator = new CertificateValidator();
             App.ApplicationConfiguration.CertificateValidator.CertificateValidation += new CertificateValidationEventHandler(OPCUAClientCertificateValidationCallback);
-            App.ApplicationConfiguration.CertificateValidator.Update(App.ApplicationConfiguration.SecurityConfiguration).GetAwaiter().GetResult();
+            App.ApplicationConfiguration.CertificateValidator.UpdateAsync(App.ApplicationConfiguration).GetAwaiter().GetResult();
 
             // start the server
-            await App.Start(new UAServer()).ConfigureAwait(false);
+            await App.StartAsync(new UAServer()).ConfigureAwait(false);
 
             Log.Logger.Information("UA Edge HEMS is running.");
             await Task.Delay(Timeout.Infinite).ConfigureAwait(false);

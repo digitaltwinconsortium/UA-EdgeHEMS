@@ -55,7 +55,7 @@ namespace UAEdgeHEMS
         private const float GridExportPowerLimit = 7000f;
 
         // variables
-        private long _lastUsedId = 0;
+        private uint _lastUsedId = 0;
 
         private SmartMessageLanguage _sml;
 

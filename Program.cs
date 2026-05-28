@@ -61,6 +61,7 @@ namespace UAEdgeHEMS
             // always trust the OPC UA client certificate
             if (e.Error.StatusCode == StatusCodes.BadCertificateUntrusted)
             {
+                Log.Warning("Auto-accepting untrusted OPC UA client certificate {Certificate}!", e.Certificate.Subject);
                 e.Accept = true;
             }
         }

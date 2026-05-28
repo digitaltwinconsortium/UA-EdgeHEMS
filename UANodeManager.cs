@@ -32,6 +32,15 @@ namespace UAEdgeHEMS
         private const int WallbeWallboxModbusTCPPort = 502;
         private const int WallbeWallboxModbusUnitID = 255;
 
+        private const string ShellyEMBaseAddress = "192.168.1.20";
+        // The Gen1 Shelly EM (type "SHEM") exposes both CT clamps in the
+        // single /status response under the "emeters" array (indices 0 and 1).
+        // Clamp 0 is around the Cottage feeder, clamp 1 is around the whole-house feeder
+        // (which physically includes the cottage). The Loft load is therefore derived as
+        // House - Cottage.
+        private const int ShellyEMCottageChannelId = 0;
+        private const int ShellyEMHouseChannelId = 1;
+
         // tags
         private const float FroniusSymoMaxPower = 8200f;
 
@@ -78,7 +87,8 @@ namespace UAEdgeHEMS
                 "http://opcfoundation.org/UA/Wallbox/",         // 5
                 "http://opcfoundation.org/UA/Heatpump/",        // 6
                 "http://opcfoundation.org/UA/OpenWeatherMap/",  // 7
-                "http://opcfoundation.org/UA/HouseAlarm/"       // 8
+                "http://opcfoundation.org/UA/HouseAlarm/",      // 8
+                "http://opcfoundation.org/UA/ShellyEM/"         // 9
             };
 
             NamespaceUris = namespaceUris;
@@ -199,6 +209,22 @@ namespace UAEdgeHEMS
             _uaVariables["HouseAlarmLastEventTimestamp"].Value = string.Empty;
             _uaVariables["HouseAlarmAccountNumber"].Value = string.Empty;
 
+            _uaVariables["ShellyEMCottagePower"].Value = 0.0f;
+            _uaVariables["ShellyEMCottageCurrent"].Value = 0.0f;
+            _uaVariables["ShellyEMCottageVoltage"].Value = 0.0f;
+            _uaVariables["ShellyEMCottagePowerFactor"].Value = 0.0f;
+            _uaVariables["ShellyEMCottageEnergyImported"].Value = 0.0f;
+            _uaVariables["ShellyEMCottageEnergyExported"].Value = 0.0f;
+            _uaVariables["ShellyEMHousePower"].Value = 0.0f;
+            _uaVariables["ShellyEMHouseCurrent"].Value = 0.0f;
+            _uaVariables["ShellyEMHouseVoltage"].Value = 0.0f;
+            _uaVariables["ShellyEMHousePowerFactor"].Value = 0.0f;
+            _uaVariables["ShellyEMHouseEnergyImported"].Value = 0.0f;
+            _uaVariables["ShellyEMHouseEnergyExported"].Value = 0.0f;
+            _uaVariables["ShellyEMLoftPower"].Value = 0.0f;
+            _uaVariables["ShellyEMLoftEnergyImported"].Value = 0.0f;
+            _uaVariables["ShellyEMLoftEnergyExported"].Value = 0.0f;
+
             // kick off our asset update background tasks
             _ = Task.Factory.StartNew(WeatherDataUpdate, TaskCreationOptions.LongRunning);
             _ = Task.Factory.StartNew(InverterUpdate, TaskCreationOptions.LongRunning);
@@ -206,6 +232,7 @@ namespace UAEdgeHEMS
             _ = Task.Factory.StartNew(SmartMeterUpdate, TaskCreationOptions.LongRunning);
             _ = Task.Factory.StartNew(EVChargingUpdate, TaskCreationOptions.LongRunning);
             _ = Task.Factory.StartNew(HouseAlarmUpdate, TaskCreationOptions.LongRunning);
+            _ = Task.Factory.StartNew(ShellyEMUpdate, TaskCreationOptions.LongRunning);
         }
 
         private void CreateUANodes(IList<IReference> references)
@@ -266,6 +293,13 @@ namespace UAEdgeHEMS
             houseAlarmFolder.EventNotifier = EventNotifiers.SubscribeToEvents;
             AddRootNotifier(houseAlarmFolder);
 
+            // create our top-level Shelly EM folder
+            FolderState shellyEMFolder = CreateFolder(null, "ShellyEM", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/ShellyEM/"));
+            shellyEMFolder.AddReference(ReferenceTypes.Organizes, true, ObjectIds.ObjectsFolder);
+            references.Add(new NodeStateReference(ReferenceTypes.Organizes, false, shellyEMFolder.NodeId));
+            shellyEMFolder.EventNotifier = EventNotifiers.SubscribeToEvents;
+            AddRootNotifier(shellyEMFolder);
+
             // create our variables
             _uaVariables.Add("PVOutputPower", CreateVariable(inverterFolder, "PVOutputPower", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SunSpecInverter/")));
             _uaVariables.Add("PVOutputEnergyDay", CreateVariable(inverterFolder, "PVOutputEnergyDay", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SunSpecInverter/")));
@@ -306,6 +340,23 @@ namespace UAEdgeHEMS
             _uaVariables.Add("HouseAlarmLastEventTimestamp", CreateVariable(houseAlarmFolder, "HouseAlarmLastEventTimestamp", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/HouseAlarm/"), true));
             _uaVariables.Add("HouseAlarmAccountNumber", CreateVariable(houseAlarmFolder, "HouseAlarmAccountNumber", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/HouseAlarm/"), true));
 
+            ushort shellyEMNamespaceIndex = (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/ShellyEM/");
+            _uaVariables.Add("ShellyEMCottagePower", CreateVariable(shellyEMFolder, "ShellyEMCottagePower", shellyEMNamespaceIndex));
+            _uaVariables.Add("ShellyEMCottageCurrent", CreateVariable(shellyEMFolder, "ShellyEMCottageCurrent", shellyEMNamespaceIndex));
+            _uaVariables.Add("ShellyEMCottageVoltage", CreateVariable(shellyEMFolder, "ShellyEMCottageVoltage", shellyEMNamespaceIndex));
+            _uaVariables.Add("ShellyEMCottagePowerFactor", CreateVariable(shellyEMFolder, "ShellyEMCottagePowerFactor", shellyEMNamespaceIndex));
+            _uaVariables.Add("ShellyEMCottageEnergyImported", CreateVariable(shellyEMFolder, "ShellyEMCottageEnergyImported", shellyEMNamespaceIndex));
+            _uaVariables.Add("ShellyEMCottageEnergyExported", CreateVariable(shellyEMFolder, "ShellyEMCottageEnergyExported", shellyEMNamespaceIndex));
+            _uaVariables.Add("ShellyEMHousePower", CreateVariable(shellyEMFolder, "ShellyEMHousePower", shellyEMNamespaceIndex));
+            _uaVariables.Add("ShellyEMHouseCurrent", CreateVariable(shellyEMFolder, "ShellyEMHouseCurrent", shellyEMNamespaceIndex));
+            _uaVariables.Add("ShellyEMHouseVoltage", CreateVariable(shellyEMFolder, "ShellyEMHouseVoltage", shellyEMNamespaceIndex));
+            _uaVariables.Add("ShellyEMHousePowerFactor", CreateVariable(shellyEMFolder, "ShellyEMHousePowerFactor", shellyEMNamespaceIndex));
+            _uaVariables.Add("ShellyEMHouseEnergyImported", CreateVariable(shellyEMFolder, "ShellyEMHouseEnergyImported", shellyEMNamespaceIndex));
+            _uaVariables.Add("ShellyEMHouseEnergyExported", CreateVariable(shellyEMFolder, "ShellyEMHouseEnergyExported", shellyEMNamespaceIndex));
+            _uaVariables.Add("ShellyEMLoftPower", CreateVariable(shellyEMFolder, "ShellyEMLoftPower", shellyEMNamespaceIndex));
+            _uaVariables.Add("ShellyEMLoftEnergyImported", CreateVariable(shellyEMFolder, "ShellyEMLoftEnergyImported", shellyEMNamespaceIndex));
+            _uaVariables.Add("ShellyEMLoftEnergyExported", CreateVariable(shellyEMFolder, "ShellyEMLoftEnergyExported", shellyEMNamespaceIndex));
+
             // add everything to our nodeset
             AddPredefinedNode(SystemContext, controlFolder);
             AddPredefinedNode(SystemContext, inverterFolder);
@@ -314,6 +365,7 @@ namespace UAEdgeHEMS
             AddPredefinedNode(SystemContext, heatPumpFolder);
             AddPredefinedNode(SystemContext, weatherFolder);
             AddPredefinedNode(SystemContext, houseAlarmFolder);
+            AddPredefinedNode(SystemContext, shellyEMFolder);
         }
 
         private PropertyState<Argument[]> CreateInputArguments(NodeState parent, string name, string description)
@@ -500,6 +552,98 @@ namespace UAEdgeHEMS
                     Log.Error(ex, "Updating house alarm data failed!");
                 }
             }
+        }
+
+        private void ShellyEMUpdate()
+        {
+            Log.Information("Started Read Shelly EM Tags Thread.");
+
+            while (true)
+            {
+                Thread.Sleep(15000);
+
+                try
+                {
+                    using (HttpClient webClient = new())
+                    {
+                        webClient.Timeout = TimeSpan.FromSeconds(5);
+
+                        // The Gen1 Shelly EM returns both clamps' instantaneous values
+                        // and lifetime energy counters in a single /status response.
+                        ShellyEMStatus status = ReadShellyEMStatus(webClient);
+                        ShellyEMeter cottage = GetShellyEMeter(status, ShellyEMCottageChannelId);
+                        ShellyEMeter house = GetShellyEMeter(status, ShellyEMHouseChannelId);
+
+                        DateTime now = DateTime.UtcNow;
+
+                        UpdateShellyChannelVariables("ShellyEMCottage", cottage, now);
+                        UpdateShellyChannelVariables("ShellyEMHouse", house, now);
+
+                        // Loft = whole-house clamp minus cottage clamp, because the house clamp
+                        // physically includes the cottage feeder. Units match the per-clamp variables:
+                        // power stays in Watts, energy is converted from Wh to kWh.
+                        float loftPowerW = ToFloat(house?.power) - ToFloat(cottage?.power);
+                        float loftImportedKWh = (ToFloat(house?.total) - ToFloat(cottage?.total)) / 1000.0f;
+                        float loftExportedKWh = (ToFloat(house?.total_returned) - ToFloat(cottage?.total_returned)) / 1000.0f;
+
+                        SetFloatVariable("ShellyEMLoftPower", loftPowerW, now);
+                        SetFloatVariable("ShellyEMLoftEnergyImported", loftImportedKWh, now);
+                        SetFloatVariable("ShellyEMLoftEnergyExported", loftExportedKWh, now);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Getting Shelly EM data failed!");
+                }
+            }
+        }
+
+        private static ShellyEMStatus ReadShellyEMStatus(HttpClient webClient)
+        {
+            string address = "http://" + ShellyEMBaseAddress + "/status";
+            HttpResponseMessage response = webClient.Send(new HttpRequestMessage(HttpMethod.Get, address));
+            response.EnsureSuccessStatusCode();
+            string responseString = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            return JsonConvert.DeserializeObject<ShellyEMStatus>(responseString);
+        }
+
+        private static ShellyEMeter GetShellyEMeter(ShellyEMStatus status, int index)
+        {
+            if (status?.emeters == null || index < 0 || index >= status.emeters.Count)
+            {
+                return null;
+            }
+
+            return status.emeters[index];
+        }
+
+        private void UpdateShellyChannelVariables(string prefix, ShellyEMeter clamp, DateTime timestamp)
+        {
+            // expose raw values: power in Watts, current in Amps (derived, the Gen1 SHEM
+            // does not report current directly), voltage in Volts, energy in kWh.
+            float power = ToFloat(clamp?.power);
+            float voltage = ToFloat(clamp?.voltage);
+            float current = voltage > 0.0f ? Math.Abs(power) / voltage : 0.0f;
+
+            SetFloatVariable(prefix + "Power", power, timestamp);
+            SetFloatVariable(prefix + "Current", current, timestamp);
+            SetFloatVariable(prefix + "Voltage", voltage, timestamp);
+            SetFloatVariable(prefix + "PowerFactor", ToFloat(clamp?.pf), timestamp);
+            SetFloatVariable(prefix + "EnergyImported", ToFloat(clamp?.total) / 1000.0f, timestamp);
+            SetFloatVariable(prefix + "EnergyExported", ToFloat(clamp?.total_returned) / 1000.0f, timestamp);
+        }
+
+        private void SetFloatVariable(string name, float value, DateTime timestamp)
+        {
+            BaseDataVariableState variable = _uaVariables[name];
+            variable.Value = value;
+            variable.Timestamp = timestamp;
+            variable.ClearChangeMasks(SystemContext, false);
+        }
+
+        private static float ToFloat(double? value)
+        {
+            return value.HasValue ? (float)value.Value : 0.0f;
         }
 
         private void SmartMeterUpdate()

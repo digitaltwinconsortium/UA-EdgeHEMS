@@ -351,3 +351,4 @@ MigrationBackup/
 /uaedgetranslator.logfile.txt
 /uaedgehems.logfile.txt
 *.txt
+/pki

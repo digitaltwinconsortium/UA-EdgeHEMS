@@ -17,6 +17,8 @@ namespace UAEdgeHEMS
     {
         // addresses
         private const string LinuxUSBSerialPort = "/dev/ttyUSB0";
+        private const string LinuxHouseAlarmSerialPort = "/dev/ttyUSB1";
+        private const int HouseAlarmBaudRate = 9600;
 
         private const string FroniusInverterBaseAddress = "192.168.178.31";
         private const int FroniusInverterModbusTCPPort = 502;
@@ -59,6 +61,8 @@ namespace UAEdgeHEMS
 
         private SmartMessageLanguage _sml;
 
+        private SIAProtocol _sia;
+
         private Dictionary<string, BaseDataVariableState> _uaVariables = new();
 
         public UANodeManager(IServerInternal server, ApplicationConfiguration configuration)
@@ -73,7 +77,8 @@ namespace UAEdgeHEMS
                 "http://opcfoundation.org/UA/SmartMeter/",      // 4
                 "http://opcfoundation.org/UA/Wallbox/",         // 5
                 "http://opcfoundation.org/UA/Heatpump/",        // 6
-                "http://opcfoundation.org/UA/OpenWeatherMap/"   // 7
+                "http://opcfoundation.org/UA/OpenWeatherMap/",  // 7
+                "http://opcfoundation.org/UA/HouseAlarm/"       // 8
             };
 
             NamespaceUris = namespaceUris;
@@ -96,6 +101,17 @@ namespace UAEdgeHEMS
             catch (Exception ex)
             {
                 Log.Error(ex, "Connecting to smart meter failed!");
+            }
+
+            // start processing SIA-format house alarm messages from the serial port
+            try
+            {
+                _sia = new SIAProtocol(LinuxHouseAlarmSerialPort, HouseAlarmBaudRate);
+                _sia.ProcessStream();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Connecting to house alarm panel failed!");
             }
         }
 
@@ -175,12 +191,21 @@ namespace UAEdgeHEMS
             _uaVariables["HeatPumpCurrentPowerConsumption"].Value = 0.0f;
             _uaVariables["HeatPumpMode"].Value = 0.0f;
 
+            _uaVariables["HouseAlarmActive"].Value = 0.0f;
+            _uaVariables["HouseAlarmLastEventCode"].Value = string.Empty;
+            _uaVariables["HouseAlarmLastEventDescription"].Value = string.Empty;
+            _uaVariables["HouseAlarmLastEventZone"].Value = string.Empty;
+            _uaVariables["HouseAlarmLastEventArea"].Value = string.Empty;
+            _uaVariables["HouseAlarmLastEventTimestamp"].Value = string.Empty;
+            _uaVariables["HouseAlarmAccountNumber"].Value = string.Empty;
+
             // kick off our asset update background tasks
             _ = Task.Factory.StartNew(WeatherDataUpdate, TaskCreationOptions.LongRunning);
             _ = Task.Factory.StartNew(InverterUpdate, TaskCreationOptions.LongRunning);
             _ = Task.Factory.StartNew(HeatPumpUpdate, TaskCreationOptions.LongRunning);
             _ = Task.Factory.StartNew(SmartMeterUpdate, TaskCreationOptions.LongRunning);
             _ = Task.Factory.StartNew(EVChargingUpdate, TaskCreationOptions.LongRunning);
+            _ = Task.Factory.StartNew(HouseAlarmUpdate, TaskCreationOptions.LongRunning);
         }
 
         private void CreateUANodes(IList<IReference> references)
@@ -234,6 +259,13 @@ namespace UAEdgeHEMS
             weatherFolder.EventNotifier = EventNotifiers.SubscribeToEvents;
             AddRootNotifier(weatherFolder);
 
+            // create our top-level House Alarm folder
+            FolderState houseAlarmFolder = CreateFolder(null, "HouseAlarm", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/HouseAlarm/"));
+            houseAlarmFolder.AddReference(ReferenceTypes.Organizes, true, ObjectIds.ObjectsFolder);
+            references.Add(new NodeStateReference(ReferenceTypes.Organizes, false, houseAlarmFolder.NodeId));
+            houseAlarmFolder.EventNotifier = EventNotifiers.SubscribeToEvents;
+            AddRootNotifier(houseAlarmFolder);
+
             // create our variables
             _uaVariables.Add("PVOutputPower", CreateVariable(inverterFolder, "PVOutputPower", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SunSpecInverter/")));
             _uaVariables.Add("PVOutputEnergyDay", CreateVariable(inverterFolder, "PVOutputEnergyDay", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/SunSpecInverter/")));
@@ -266,6 +298,14 @@ namespace UAEdgeHEMS
             _uaVariables.Add("WindSpeed", CreateVariable(weatherFolder, "WindSpeed", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/OpenWeatherMap/")));
             _uaVariables.Add("CloudinessForecast", CreateVariable(weatherFolder, "CloudinessForecast", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/OpenWeatherMap/"), true));
 
+            _uaVariables.Add("HouseAlarmActive", CreateVariable(houseAlarmFolder, "HouseAlarmActive", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/HouseAlarm/")));
+            _uaVariables.Add("HouseAlarmLastEventCode", CreateVariable(houseAlarmFolder, "HouseAlarmLastEventCode", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/HouseAlarm/"), true));
+            _uaVariables.Add("HouseAlarmLastEventDescription", CreateVariable(houseAlarmFolder, "HouseAlarmLastEventDescription", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/HouseAlarm/"), true));
+            _uaVariables.Add("HouseAlarmLastEventZone", CreateVariable(houseAlarmFolder, "HouseAlarmLastEventZone", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/HouseAlarm/"), true));
+            _uaVariables.Add("HouseAlarmLastEventArea", CreateVariable(houseAlarmFolder, "HouseAlarmLastEventArea", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/HouseAlarm/"), true));
+            _uaVariables.Add("HouseAlarmLastEventTimestamp", CreateVariable(houseAlarmFolder, "HouseAlarmLastEventTimestamp", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/HouseAlarm/"), true));
+            _uaVariables.Add("HouseAlarmAccountNumber", CreateVariable(houseAlarmFolder, "HouseAlarmAccountNumber", (ushort)Server.NamespaceUris.GetIndex("http://opcfoundation.org/UA/HouseAlarm/"), true));
+
             // add everything to our nodeset
             AddPredefinedNode(SystemContext, controlFolder);
             AddPredefinedNode(SystemContext, inverterFolder);
@@ -273,6 +313,7 @@ namespace UAEdgeHEMS
             AddPredefinedNode(SystemContext, wallboxFolder);
             AddPredefinedNode(SystemContext, heatPumpFolder);
             AddPredefinedNode(SystemContext, weatherFolder);
+            AddPredefinedNode(SystemContext, houseAlarmFolder);
         }
 
         private PropertyState<Argument[]> CreateInputArguments(NodeState parent, string name, string description)
@@ -411,6 +452,52 @@ namespace UAEdgeHEMS
                     {
                         wallbox.Disconnect();
                     }
+                }
+            }
+        }
+
+        private void HouseAlarmUpdate()
+        {
+            Log.Information("Started Read House Alarm Tags Thread.");
+
+            while (true)
+            {
+                Thread.Sleep(5000);
+
+                try
+                {
+                    if (_sia != null)
+                    {
+                        _uaVariables["HouseAlarmActive"].Value = _sia.Alarm.AlarmActive ? 1.0f : 0.0f;
+                        _uaVariables["HouseAlarmLastEventCode"].Value = _sia.Alarm.LastEventCode ?? string.Empty;
+                        _uaVariables["HouseAlarmLastEventDescription"].Value = _sia.Alarm.LastEventDescription ?? string.Empty;
+                        _uaVariables["HouseAlarmLastEventZone"].Value = _sia.Alarm.LastEventZone ?? string.Empty;
+                        _uaVariables["HouseAlarmLastEventArea"].Value = _sia.Alarm.LastEventArea ?? string.Empty;
+                        _uaVariables["HouseAlarmLastEventTimestamp"].Value = _sia.Alarm.LastEventTimestamp == DateTime.MinValue
+                            ? string.Empty
+                            : _sia.Alarm.LastEventTimestamp.ToString("o");
+                        _uaVariables["HouseAlarmAccountNumber"].Value = _sia.Alarm.AccountNumber ?? string.Empty;
+                    }
+
+                    DateTime now = DateTime.UtcNow;
+                    _uaVariables["HouseAlarmActive"].Timestamp = now;
+                    _uaVariables["HouseAlarmActive"].ClearChangeMasks(SystemContext, false);
+                    _uaVariables["HouseAlarmLastEventCode"].Timestamp = now;
+                    _uaVariables["HouseAlarmLastEventCode"].ClearChangeMasks(SystemContext, false);
+                    _uaVariables["HouseAlarmLastEventDescription"].Timestamp = now;
+                    _uaVariables["HouseAlarmLastEventDescription"].ClearChangeMasks(SystemContext, false);
+                    _uaVariables["HouseAlarmLastEventZone"].Timestamp = now;
+                    _uaVariables["HouseAlarmLastEventZone"].ClearChangeMasks(SystemContext, false);
+                    _uaVariables["HouseAlarmLastEventArea"].Timestamp = now;
+                    _uaVariables["HouseAlarmLastEventArea"].ClearChangeMasks(SystemContext, false);
+                    _uaVariables["HouseAlarmLastEventTimestamp"].Timestamp = now;
+                    _uaVariables["HouseAlarmLastEventTimestamp"].ClearChangeMasks(SystemContext, false);
+                    _uaVariables["HouseAlarmAccountNumber"].Timestamp = now;
+                    _uaVariables["HouseAlarmAccountNumber"].ClearChangeMasks(SystemContext, false);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Updating house alarm data failed!");
                 }
             }
         }

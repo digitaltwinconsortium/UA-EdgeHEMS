@@ -54,6 +54,7 @@ namespace UAEdgeHEMS
         private const int IDMHeatPumpHeatingWaterCTemp = 1354;
 
         private const int WallbeWallboxMinChargingCurrent = 6; // EVs don't charge with less than 6 Amps
+        private const int WallbeWallboxMaxChargingCurrent = 16; // the maximum current a single charging phase can deliver
         private const int WallbeWallboxEVStatusAddress = 100;
         private const int WallbeWallboxMaxCurrentSettingAddress = 101;
         private const int WallbeWallboxCurrentCurrentSettingAddress = 300;
@@ -1038,9 +1039,10 @@ namespace UAEdgeHEMS
         private void OptimizeEVCharging(ModbusTCPClient wallbox, double currentPower)
         {
             // we ramp up and down our charging current in 1 Amp increments/decrements
-            // we increase our charging current until a) we have reached the maximum the _wallbox can handle or
+            // we increase our charging current until a) we have reached the maximum the wallbox can handle or
             // b) we are just below consuming power from the grid (indicated by currentPower becoming positive), we are setting this to -200 Watts
-            // we decrease our charging current when currentPower is above 0 (again indicated we are comsuming pwoer from the grid)
+            // we decrease our charging current when currentPower is above 0 (again indicated we are comsuming power from the grid)
+            // when "charge now" is active we bypass this entirely and charge at the maximum current
 
             // read maximum current rating
             ushort maxCurrent = BitConverter.ToUInt16(ByteSwapper.Swap(wallbox.Read(
@@ -1055,11 +1057,30 @@ namespace UAEdgeHEMS
                 ModbusTCPClient.FunctionCode.ReadHoldingRegisters,
                 WallbeWallboxCurrentCurrentSettingAddress, 1).GetAwaiter().GetResult()));
 
-            // check if we have reached our limits (we define a 1KW "deadzone" from -500W to 500W where we keep things the way they are to cater for jitter)
-            // "charge now" overwrites this and always charges, but as slowly as possible
-            if ((wallbeWallboxCurrentCurrentSetting < maxCurrent) && (currentPower < -500) && ((float)_uaVariables["ChargeNow"].Value == 0.0f))
+            // never exceed what the wallbox itself reports it can deliver
+            ushort upperCurrentLimit = Math.Min(maxCurrent, (ushort)WallbeWallboxMaxChargingCurrent);
+
+            // "charge now" overrides the surplus-based optimization and always charges as fast as possible,
+            // so we go straight to the maximum current instead of ramping in 1 Amp steps
+            if ((float)_uaVariables["ChargeNow"].Value == 1.0f)
             {
-                // increse desired current by 1 Amp
+                if (wallbeWallboxCurrentCurrentSetting != upperCurrentLimit)
+                {
+                    wallbox.WriteHoldingRegisters(
+                        WallbeWallboxModbusUnitID,
+                        WallbeWallboxDesiredCurrentSettingAddress,
+                        new ushort[] { upperCurrentLimit }).GetAwaiter().GetResult();
+
+                    Log.Information($"Charge now active, EV charging current set to {upperCurrentLimit}A.");
+                }
+
+                return;
+            }
+
+            // check if we have reached our limits (we define a 1KW "deadzone" from -500W to 500W where we keep things the way they are to cater for jitter)
+            if ((wallbeWallboxCurrentCurrentSetting < upperCurrentLimit) && (currentPower < -500))
+            {
+                // increase desired current by 1 Amp
                 wallbox.WriteHoldingRegisters(
                     WallbeWallboxModbusUnitID,
                     WallbeWallboxDesiredCurrentSettingAddress,
@@ -1068,13 +1089,10 @@ namespace UAEdgeHEMS
             else if (currentPower > 500)
             {
                 // need to decrease our charging current
-                if (wallbeWallboxCurrentCurrentSetting == WallbeWallboxMinChargingCurrent)
+                if (wallbeWallboxCurrentCurrentSetting <= WallbeWallboxMinChargingCurrent)
                 {
-                    // we are already at the minimum, so stop, unless charge now is active
-                    if ((float)_uaVariables["ChargeNow"].Value == 0.0f)
-                    {
-                        StopEVCharging(wallbox);
-                    }
+                    // we are already at the minimum, so stop
+                    StopEVCharging(wallbox);
                 }
                 else
                 {
